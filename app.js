@@ -49,6 +49,7 @@ onAuthStateChanged(auth, async (user) => {
                     await signOut(auth);
                 }
             } else {
+                // إنشاء مستند جديد في مجموعة users وتعيين دور user افتراضيًا
                 await setDoc(userRef, {
                     email: user.email,
                     role: "user",
@@ -369,7 +370,7 @@ function renderContent(id) {
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
                         <div style="flex-grow: 1;">
                             <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Gruppentitel:</label>
-                            <input type="text" value="${group.title \vert{}\vert{} ''}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" 
+                            <input type="text" value="${group.title || ''}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" 
                                    style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;">
                         </div>
                         <div style="display: flex; gap: 6px; align-items: flex-end; padding-top: 15px;">
@@ -397,12 +398,12 @@ function renderContent(id) {
                                 ${(group.audios && group.audios.length > 0) ? group.audios.map((a, aIdx) => `
                                     <div style="background: #FFF; padding: 10px 12px; border-radius: 8px; border: 1px solid #E0E7E3;">
                                         <div style="margin-bottom: 6px;">
-                                            <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx},${aIdx}, this.value)" 
+                                            <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" 
                                                    style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0; color: #333;">
                                         </div>
                                         <audio controls src="${a.url}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
                                         <div style="text-align: left; margin-top: 6px;">
-                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx},${aIdx})">Aufnahme löschen 🗑️</button>
+                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx}, ${aIdx})">Aufnahme löschen 🗑️</button>
                                         </div>
                                     </div>
                                 `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">Keine Sprachaufnahmen vorhanden.</div>'}
@@ -458,90 +459,6 @@ function renderNotebookPage() {
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
     document.getElementById("prevPageBtn").disabled = currentPageIndex === 0;
     document.getElementById("nextPageBtn").disabled = textContent.trim() === "";
-
-    // تحديث شكل زر النجمة بالنسبة للصفحة الحالية
-    const starBtn = document.getElementById("starPageBtn");
-    if (starBtn) {
-        const isStarred = (nb.starredPages || []).includes(currentPageIndex);
-        starBtn.innerHTML = isStarred ? "⭐" : "☆";
-        starBtn.style.color = isStarred ? "#FFB800" : "var(--text-secondary)";
-    }
-}
-
-function escapeHtml(str) {
-    if (!str) return "";
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-}
-
-function renderNotebookOverview() {
-    if (currentNotebookIndex === null || !activeBubbleId) return;
-    const b = nodesData.get(activeBubbleId);
-    const nb = b.content.notebooks[currentNotebookIndex];
-    const starredPages = nb.starredPages || [];
-    const listContainer = document.getElementById("notebookPagesList");
-    
-    if (!listContainer) return;
-    
-    if (!nb.pages || nb.pages.length === 0) {
-        listContainer.innerHTML = `<div style="text-align:center; color: var(--text-secondary); font-size: 0.9rem;">Keine Seiten vorhanden.</div>`;
-        return;
-    }
-
-    listContainer.innerHTML = nb.pages.map((pText, i) => {
-        const isStarred = starredPages.includes(i);
-        const isCurrent = i === currentPageIndex;
-        const previewText = pText && pText.trim() ? pText.trim() : "Leere Seite...";
-        return `
-            <div class="notebook-page-item ${isCurrent ? 'active-page' : ''}" onclick="jumpToNotebookPage(${i})">
-                <div class="notebook-page-item-header">
-                    <span>Seite ${i + 1}${isCurrent ? ' (Aktuell)' : ''}</span>
-                    ${isStarred ? '<span style="color: #FFB800; font-size: 1.1rem;">⭐</span>' : ''}
-                </div>
-                <div class="notebook-page-item-preview">${escapeHtml(previewText)}</div>
-            </div>
-        `;
-    }).join("");
-}
-
-window.jumpToNotebookPage = (pageIndex) => {
-    currentPageIndex = pageIndex;
-    renderNotebookPage();
-    const overviewModal = document.getElementById("notebookOverviewModal");
-    if (overviewModal) overviewModal.classList.remove("active");
-};
-
-const starPageBtn = document.getElementById("starPageBtn");
-if (starPageBtn) {
-    starPageBtn.addEventListener("click", async () => {
-        if (currentNotebookIndex === null || !activeBubbleId) return;
-        const b = nodesData.get(activeBubbleId);
-        const nb = b.content.notebooks[currentNotebookIndex];
-        if (!nb.starredPages) nb.starredPages = [];
-        
-        const idx = nb.starredPages.indexOf(currentPageIndex);
-        if (idx > -1) {
-            nb.starredPages.splice(idx, 1);
-        } else {
-            nb.starredPages.push(currentPageIndex);
-        }
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
-        renderNotebookPage();
-    });
-}
-
-const openPageOverviewBtn = document.getElementById("openPageOverviewBtn");
-if (openPageOverviewBtn) {
-    openPageOverviewBtn.addEventListener("click", () => {
-        renderNotebookOverview();
-        document.getElementById("notebookOverviewModal").classList.add("active");
-    });
-}
-
-const closeNotebookOverviewModal = document.getElementById("closeNotebookOverviewModal");
-if (closeNotebookOverviewModal) {
-    closeNotebookOverviewModal.addEventListener("click", () => {
-        document.getElementById("notebookOverviewModal").classList.remove("active");
-    });
 }
 
 document.getElementById("notebookPageInput").addEventListener("input", async (e) => {
