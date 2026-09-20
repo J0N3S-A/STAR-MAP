@@ -103,7 +103,11 @@
         <div class="modal-card notebook-card">
             <div class="modal-header">
                 <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
-                <button class="close-btn" id="closeNotebookModal">&times;</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button id="starPageBtn" class="page-btn" style="padding: 6px 10px; font-size: 16px; border: 1px solid var(--bubble-border); background: #FFFFFF; border-radius: 8px; cursor: pointer;" title="Seite markieren">☆</button>
+                    <button id="openPageOverviewBtn" class="page-btn" style="padding: 6px 12px; font-size: 13px; border: 1px solid var(--bubble-border); background: #FFFFFF; border-radius: 8px; cursor: pointer;" title="Seitenübersicht">📋 Seiten</button>
+                    <button class="close-btn" id="closeNotebookModal">&times;</button>
+                </div>
             </div>
             <div class="notebook-page-container">
                 <textarea id="notebookPageInput" class="notebook-textarea" placeholder="Schreibe deine Gedanken hier..."></textarea>
@@ -112,6 +116,18 @@
                     <span id="pageIndicator" class="page-number">Seite 1</span>
                     <button id="nextPageBtn" class="page-btn">Weiter &rarr;</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seitenübersicht Modal -->
+    <div class="modal-overlay" id="notebookOverviewModal" style="z-index: 130;">
+        <div class="modal-card small-card" style="max-width: 450px; text-align: left; max-height: 80vh;">
+            <div class="modal-header">
+                <h3 style="font-size: 1.2rem; color: var(--text-primary);">Seitenübersicht</h3>
+                <button class="close-btn" id="closeNotebookOverviewModal">&times;</button>
+            </div>
+            <div id="notebookPagesList" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; max-height: 55vh; overflow-y: auto; padding-right: 4px;">
             </div>
         </div>
     </div>
