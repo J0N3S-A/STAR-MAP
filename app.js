@@ -80,6 +80,7 @@ let currentAction = null;
 let currentNotebookIndex = null;
 let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
+let isPageStarred = {}; // لتتبع الصفحات المميزة
 
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
@@ -449,6 +450,8 @@ window.openNotebook = (index) => {
     if (!nb.pages) { nb.pages = [nb.text || ""]; delete nb.text; }
     document.getElementById("activeNotebookTitle").innerText = nb.title;
     document.getElementById("notebookModal").classList.add("active");
+    loadStarredPages();
+    updateStarButtonUI();
     renderNotebookPage();
 };
 
@@ -459,7 +462,75 @@ function renderNotebookPage() {
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
     document.getElementById("prevPageBtn").disabled = currentPageIndex === 0;
     document.getElementById("nextPageBtn").disabled = textContent.trim() === "";
+    updateStarButtonUI(); // تحديث حالة النجمة عند تغيير الصفحة
 }
+// دوال التحكم بالنجمة والصفحات
+async function loadStarredPages() {
+    const b = nodesData.get(activeBubbleId);
+    const nb = b.content.notebooks[currentNotebookIndex];
+    if (!nb.starred) { nb.starred = []; }
+    isPageStarred = {};
+    nb.starred.forEach(idx => { isPageStarred[idx] = true; });
+}
+
+function updateStarButtonUI() {
+    const btn = document.getElementById("starBtn");
+    if (!btn) return;
+    const isStarred = isPageStarred[currentPageIndex];
+    if (isStarred) {
+        btn.style.color = "#FFD700";
+        btn.style.opacity = "1";
+    } else {
+        btn.style.color = "#8A9D93";
+        btn.style.opacity = "0.6";
+    }
+}
+
+window.togglePageStar = async () => {
+    const b = nodesData.get(activeBubbleId);
+    const nb = b.content.notebooks[currentNotebookIndex];
+    if (!nb.starred) { nb.starred = []; }
+    
+    const idx = nb.starred.indexOf(currentPageIndex);
+    if (idx > -1) {
+        nb.starred.splice(idx, 1);
+        isPageStarred[currentPageIndex] = false;
+    } else {
+        nb.starred.push(currentPageIndex);
+        isPageStarred[currentPageIndex] = true;
+    }
+    
+    updateStarButtonUI();
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.showPagesList = () => {
+    const b = nodesData.get(activeBubbleId);
+    const nb = b.content.notebooks[currentNotebookIndex];
+    const container = document.getElementById("pagesListContainer");
+    
+    container.innerHTML = nb.pages.map((text, idx) => {
+        const preview = text.substring(0, 50) + (text.length > 50 ? "..." : "");
+        const isStarred = isPageStarred[idx];
+        return `
+            <div style="padding: 12px; background: #F2F7F4; border-radius: 10px; cursor: pointer; transition: 0.2s;" onclick="goToPage(${idx})">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: #4A5D54;">Seite ${idx + 1}</span>
+                    ${isStarred ? '⭐' : ''}
+                </div>
+                <div style="font-size: 13px; color: #8A9D93; margin-top: 4px;">${preview || '(Leer)'}</div>
+            </div>
+        `;
+    }).join("");
+    
+    document.getElementById("pagesListModal").classList.add("active");
+};
+
+window.goToPage = (pageIndex) => {
+    currentPageIndex = pageIndex;
+    renderNotebookPage();
+    document.getElementById("pagesListModal").classList.remove("active");
+};
 
 document.getElementById("notebookPageInput").addEventListener("input", async (e) => {
     const text = e.target.value;
@@ -486,6 +557,14 @@ document.getElementById("nextPageBtn").addEventListener("click", async () => {
     }
 });
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
+
+document.getElementById("starBtn").addEventListener("click", window.togglePageStar);
+document.getElementById("pagesListBtn").addEventListener("click", window.showPagesList);
+document.getElementById("pagesListModal").addEventListener("click", (e) => {
+    if (e.target.id === "pagesListModal") {
+        document.getElementById("pagesListModal").classList.remove("active");
+    }
+});
 
 window.askDelete = (type, index) => {
     currentAction = { action: 'deleteItem', type, index };

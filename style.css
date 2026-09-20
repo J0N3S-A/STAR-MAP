@@ -162,6 +162,31 @@ input:checked + .slider::before { transform: translateX(22px); }
 .page-btn:not(:disabled):hover { background: var(--accent-soft); }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; background: transparent; color: var(--text-secondary); }
 
+.page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.small-card {
+    max-width: 400px;
+    max-height: 70vh;
+}
+
+#pagesListContainer {
+    scrollbar-width: thin;
+}
+
+#pagesListContainer::-webkit-scrollbar {
+    width: 6px;
+}
+
+#pagesListContainer::-webkit-scrollbar-thumb {
+    background: var(--bubble-border);
+    border-radius: 10px;
+}
+
 .photos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .photo-wrapper { position: relative; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
 .photos-grid img { width: 100%; height: 110px; object-fit: cover; display: block; }

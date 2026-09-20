@@ -103,6 +103,8 @@
         <div class="modal-card notebook-card">
             <div class="modal-header">
                 <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
+                <button id="starBtn" class="page-btn" title="Seite markieren">⭐</button>
+                <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen">📋 Seiten</button>
                 <button class="close-btn" id="closeNotebookModal">&times;</button>
             </div>
             <div class="notebook-page-container">
@@ -113,6 +115,14 @@
                     <button id="nextPageBtn" class="page-btn">Weiter &rarr;</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+        <!-- Modal قائمة الصفحات -->
+    <div class="modal-overlay" id="pagesListModal" style="z-index: 115;">
+        <div class="modal-card small-card">
+            <h3>📋 Seiten</h3>
+            <div id="pagesListContainer" style="max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
         </div>
     </div>
 
