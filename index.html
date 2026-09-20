@@ -17,8 +17,8 @@
     <header class="top-bar">
         <div class="logo">
           <svg class="logo-icon" viewBox="0 0 24 24">
-            <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="18">🌟</text>
-          </svg>
+  <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="18">🌟</text>
+</svg>
             <span>STAR MAP</span>
         </div>
         <div class="controls">
@@ -44,7 +44,7 @@
         <div class="modal-card">
             <div class="modal-header">
                 <input type="text" id="bubbleTitleInput" class="editable-title" placeholder="Titel eingeben...">
-                <!-- Submap Button -->
+                <!-- NEU: Submap Button -->
                 <button id="openSubmapBtn" class="btn-primary" style="margin-right: 15px; font-size: 13px; padding: 8px 14px; border-radius: 10px;">Submap Öffnen</button>
                 <button class="close-btn" id="closeContentModal">&times;</button>
             </div>
@@ -98,18 +98,12 @@
         </div>
     </div>
 
-    <!-- Notizbuchfenster (تحديث شريط العنوان لإضافة الميزات الجديدة) -->
+    <!-- Notizbuchfenster -->
     <div class="modal-overlay" id="notebookModal" style="z-index: 110;">
         <div class="modal-card notebook-card">
-            <div class="modal-header" style="flex-wrap: wrap; gap: 10px;">
+            <div class="modal-header">
                 <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
-                
-                <!-- الأزرار الجديدة: زر النجمة وزر قائمة الصفحات -->
-                <div class="notebook-header-actions" style="display: flex; gap: 8px; align-items: center;">
-                    <button id="starPageBtn" class="header-action-btn" title="Seite markieren">⭐</button>
-                    <button id="showPagesListBtn" class="header-action-btn">📋 Seiten</button>
-                    <button class="close-btn" id="closeNotebookModal">&times;</button>
-                </div>
+                <button class="close-btn" id="closeNotebookModal">&times;</button>
             </div>
             <div class="notebook-page-container">
                 <textarea id="notebookPageInput" class="notebook-textarea" placeholder="Schreibe deine Gedanken hier..."></textarea>
@@ -118,19 +112,6 @@
                     <span id="pageIndicator" class="page-number">Seite 1</span>
                     <button id="nextPageBtn" class="page-btn">Weiter &rarr;</button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Seitenliste Fenster (نافذة عرض الصفحات الجديدة) -->
-    <div class="modal-overlay" id="pagesListModal" style="z-index: 115;">
-        <div class="modal-card small-card" style="max-height: 70vh; display: flex; flex-direction: column;">
-            <div class="modal-header" style="justify-content: space-between;">
-                <h3 style="margin-bottom: 0;">📋 Seitenübersicht</h3>
-                <button class="close-btn" id="closePagesListModal">&times;</button>
-            </div>
-            <div class="items-list" id="pagesListContainer" style="overflow-y: auto; flex: 1; margin-top: 16px;">
-                <!-- سيتم إضافة الصفحات هنا عبر الجافاسكريبت -->
             </div>
         </div>
     </div>

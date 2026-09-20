@@ -185,65 +185,6 @@ input:checked + .slider::before { transform: translateX(22px); }
 .delete-btn:hover { color: #D67A7A; }
 .styled-select { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--bubble-border); outline: none; margin-top: 16px; background: var(--bubble-bg); color: var(--text-primary); font-weight: 500;}
 
-/* --- NEUE FEATURES: Notizbuch (Sterne & Seitenliste) --- */
-.header-action-btn { 
-    background: var(--bubble-bg); 
-    border: 1px solid var(--bubble-border); 
-    padding: 8px 14px; 
-    border-radius: 10px; 
-    cursor: pointer; 
-    color: var(--text-primary); 
-    font-weight: 600; 
-    font-size: 0.9rem; 
-    transition: 0.2s; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-}
-.header-action-btn:hover { 
-    background: var(--accent-soft); 
-}
-.header-action-btn.active-star { 
-    background: #FFF3CD; 
-    border-color: #FFE69C; 
-    box-shadow: 0 2px 8px rgba(255, 214, 0, 0.2); 
-}
-
-.page-list-item { 
-    background: #FAFCFB; 
-    border: 1px solid var(--bubble-border); 
-    padding: 14px; 
-    border-radius: var(--border-radius-md); 
-    cursor: pointer; 
-    display: flex; 
-    flex-direction: column; 
-    gap: 8px; 
-    transition: 0.2s; 
-    text-align: left; 
-}
-.page-list-item:hover { 
-    background: var(--accent-soft); 
-    border-color: var(--accent-hover); 
-    transform: translateY(-2px); 
-    box-shadow: var(--shadow-soft); 
-}
-.page-list-header { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    font-weight: 700; 
-    font-size: 1rem; 
-    color: var(--text-primary); 
-}
-.page-list-preview { 
-    font-size: 0.9rem; 
-    color: var(--text-secondary); 
-    white-space: nowrap; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    line-height: 1.4; 
-}
-
 /* Anpassung an mobile Bildschirme */
 @media (max-width: 768px) {
     body { font-size: 14px; }
@@ -254,5 +195,5 @@ input:checked + .slider::before { transform: translateX(22px); }
     .modal-header { flex-wrap: wrap; gap: 10px; justify-content: center; text-align: center; }
     .small-card { padding: 24px 20px; }
     #openSubmapBtn { margin-right: 0; width: 100%; text-align: center; }
-    .notebook-header-actions { width: 100%; justify-content: center; margin-top: 8px; }
 }
+ 
