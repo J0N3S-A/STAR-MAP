@@ -544,17 +544,32 @@ document.getElementById("prevPageBtn").addEventListener("click", () => {
     if (currentPageIndex > 0) { currentPageIndex--; renderNotebookPage(); }
 });
 
-document.getElementById("nextPageBtn").addEventListener("click", async () => {
-    const b = nodesData.get(activeBubbleId);
-    const nb = b.content.notebooks[currentNotebookIndex];
-    if (nb.pages[currentPageIndex].trim() !== "") {
-        currentPageIndex++;
-        if (currentPageIndex >= nb.pages.length) {
-            nb.pages.push("");
-            await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
-        }
+const btn = document.getElementById("nextPageBtn");
+btn.addEventListener("mousedown", function() {
+    this.timer = setTimeout(async () => {
+        const b = nodesData.get(activeBubbleId);
+        const nb = b.content.notebooks[currentNotebookIndex];
+        nb.pages.push("");
+        currentPageIndex = nb.pages.length - 1;
+        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
         renderNotebookPage();
+        this.isLong = true;
+    }, 2000);
+});
+
+btn.addEventListener("mouseup", async function() {
+    clearTimeout(this.timer);
+    if (!this.isLong) {
+        const b = nodesData.get(activeBubbleId);
+        const nb = b.content.notebooks[currentNotebookIndex];
+        if (nb.pages[currentPageIndex].trim() !== "") {
+            currentPageIndex++;
+            if (currentPageIndex >= nb.pages.length) nb.pages.push("");
+            await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+            renderNotebookPage();
+        }
     }
+    this.isLong = false;
 });
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
 
