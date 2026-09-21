@@ -221,4 +221,48 @@ input:checked + .slider::before { transform: translateX(22px); }
     .small-card { padding: 24px 20px; }
     #openSubmapBtn { margin-right: 0; width: 100%; text-align: center; }
 }
+
+/* Keep the content modal header and tabs fixed while notebooks scroll. */
+#contentModal .modal-card {
+    height: 85vh;
+    max-height: 85vh;
+    overflow: hidden;
+}
+
+#contentModal .modal-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#contentModal .tab-content.active {
+    flex: 1;
+    min-height: 0;
+}
+
+#contentModal #notebooksTab {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#contentModal #notebooksList {
+    flex: 1;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+}
+
+#contentModal #notebooksList::-webkit-scrollbar {
+    width: 6px;
+}
+
+#contentModal #notebooksList::-webkit-scrollbar-thumb {
+    background: var(--bubble-border);
+    border-radius: 10px;
+}
  
