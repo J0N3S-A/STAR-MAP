@@ -554,9 +554,16 @@ btn.addEventListener("pointerdown", () => {
         longPress = true;
         const b = nodesData.get(activeBubbleId);
         const nb = b.content.notebooks[currentNotebookIndex];
-        nb.pages.push("");
-        currentPageIndex = nb.pages.length - 1;
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        const lastPageIndex = nb.pages.length - 1;
+
+        if (nb.pages[lastPageIndex].trim() === "") {
+            currentPageIndex = lastPageIndex;
+        } else {
+            nb.pages.push("");
+            currentPageIndex = nb.pages.length - 1;
+            await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        }
+
         renderNotebookPage();
     }, 2000);
 });
