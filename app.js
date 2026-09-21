@@ -461,7 +461,7 @@ function renderNotebookPage() {
     document.getElementById("notebookPageInput").value = textContent;
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
     document.getElementById("prevPageBtn").disabled = currentPageIndex === 0;
-    document.getElementById("nextPageBtn").disabled = textContent.trim() === "";
+    document.getElementById("nextPageBtn").disabled = false;
     updateStarButtonUI(); // تحديث حالة النجمة عند تغيير الصفحة
 }
 // دوال التحكم بالنجمة والصفحات
@@ -536,7 +536,7 @@ document.getElementById("notebookPageInput").addEventListener("input", async (e)
     const text = e.target.value;
     const b = nodesData.get(activeBubbleId);
     b.content.notebooks[currentNotebookIndex].pages[currentPageIndex] = text;
-    document.getElementById("nextPageBtn").disabled = text.trim() === "";
+    document.getElementById("nextPageBtn").disabled = false;
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 });
 
@@ -545,21 +545,25 @@ document.getElementById("prevPageBtn").addEventListener("click", () => {
 });
 
 const btn = document.getElementById("nextPageBtn");
-btn.addEventListener("mousedown", function() {
-    this.timer = setTimeout(async () => {
+let pressTimer;
+let longPress = false;
+
+btn.addEventListener("pointerdown", () => {
+    longPress = false;
+    pressTimer = setTimeout(async () => {
+        longPress = true;
         const b = nodesData.get(activeBubbleId);
         const nb = b.content.notebooks[currentNotebookIndex];
         nb.pages.push("");
         currentPageIndex = nb.pages.length - 1;
         await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
         renderNotebookPage();
-        this.isLong = true;
     }, 2000);
 });
 
-btn.addEventListener("mouseup", async function() {
-    clearTimeout(this.timer);
-    if (!this.isLong) {
+btn.addEventListener("pointerup", async () => {
+    clearTimeout(pressTimer);
+    if (!longPress) {
         const b = nodesData.get(activeBubbleId);
         const nb = b.content.notebooks[currentNotebookIndex];
         if (nb.pages[currentPageIndex].trim() !== "") {
@@ -569,8 +573,10 @@ btn.addEventListener("mouseup", async function() {
             renderNotebookPage();
         }
     }
-    this.isLong = false;
+    longPress = false;
 });
+
+btn.addEventListener("pointercancel", () => clearTimeout(pressTimer));
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
 
 document.getElementById("starBtn").addEventListener("click", window.togglePageStar);
