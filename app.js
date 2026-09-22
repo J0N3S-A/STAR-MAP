@@ -510,7 +510,7 @@ window.showPagesList = () => {
     const container = document.getElementById("pagesListContainer");
     
     container.innerHTML = nb.pages.map((text, idx) => {
-        const preview = text.substring(0, 50) + (text.length > 50 ? "..." : "");
+        const preview = text.trim() || "(Leer)";
         const isStarred = isPageStarred[idx];
         return `
             <div style="padding: 12px; background: #F2F7F4; border-radius: 10px; cursor: pointer; transition: 0.2s;" onclick="goToPage(${idx})">
@@ -518,7 +518,7 @@ window.showPagesList = () => {
                     <span style="font-weight: 600; color: #4A5D54;">Seite ${idx + 1}</span>
                     ${isStarred ? '⭐' : ''}
                 </div>
-                <div style="font-size: 13px; color: #8A9D93; margin-top: 4px;">${preview || '(Leer)'}</div>
+                <div class="page-preview">${preview}</div>
             </div>
         `;
     }).join("");
