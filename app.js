@@ -339,15 +339,17 @@ function renderContent(id) {
 
     document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
         <div class="item-card">
-            <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
-            <div class="format-toolbar" data-toolbar-for="quickNote-${i}" aria-label="Textformatierung">
-                <button type="button" class="format-menu-toggle" title="Textformatierung">Aa</button>
+            <div class="item-title-row">
+                <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
+                <div class="format-toolbar header-format-toolbar" data-toolbar-for="quickNote-${i}" aria-label="Textformatierung">
+                <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
                 <div class="format-tools">
-                    <button type="button" class="format-toggle" data-command="bold" title="Fett">B</button>
+                    <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
                     <input type="color" data-command="foreColor" value="#4A5D54" title="Textfarbe" aria-label="Textfarbe">
                     <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
                         <option value="p">Normal</option><option value="h3">Überschrift</option><option value="blockquote">Zitat</option>
                     </select>
+                </div>
                 </div>
             </div>
             <div id="quickNote-${i}" class="quick-note-editor rich-editor" contenteditable="true" data-editor-type="quick-note" data-editor-index="${i}" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben...">${toEditorHtml(n.text)}</div>
@@ -549,6 +551,35 @@ window.goToPage = (pageIndex) => {
     renderNotebookPage();
     document.getElementById("pagesListModal").classList.remove("active");
 };
+
+document.getElementById("reorderPageBtn").addEventListener("click", async () => {
+    const b = nodesData.get(activeBubbleId);
+    const nb = b.content.notebooks[currentNotebookIndex];
+    const requestedPage = window.prompt(`Neue Position für Seite (1-${nb.pages.length})`, String(currentPageIndex + 1));
+    if (requestedPage === null) return;
+    const targetIndex = Number(requestedPage) - 1;
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= nb.pages.length) {
+        window.alert(`Bitte eine ganze Zahl zwischen 1 und ${nb.pages.length} eingeben.`);
+        return;
+    }
+    if (targetIndex === currentPageIndex) return;
+
+    const entries = nb.pages.map((text, index) => ({
+        text,
+        starred: Array.isArray(nb.starred) && nb.starred.includes(index)
+    }));
+    const [movedEntry] = entries.splice(currentPageIndex, 1);
+    entries.splice(targetIndex, 0, movedEntry);
+    nb.pages = entries.map(entry => entry.text);
+    nb.starred = entries.reduce((starred, entry, index) => {
+        if (entry.starred) starred.push(index);
+        return starred;
+    }, []);
+    currentPageIndex = targetIndex;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await loadStarredPages();
+    renderNotebookPage();
+});
 
 document.addEventListener("click", (e) => {
     const menuToggle = e.target.closest(".format-menu-toggle");

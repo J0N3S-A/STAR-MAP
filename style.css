@@ -119,6 +119,8 @@ input:checked + .slider::before { transform: translateX(22px); }
     background: #FAFCFB; padding: 20px; border-radius: var(--border-radius-md);
     display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--bubble-border);
 }
+.item-title-row { display: flex; align-items: center; gap: 10px; }
+.item-title-row > input { flex: 1; min-width: 0; }
 .item-card input, .item-card textarea { border: none; background: transparent; outline: none; width: 100%; }
 .item-card input { font-weight: 600; font-size: 1.05rem; color: var(--text-primary); }
 .item-card textarea { font-size: 0.95rem; color: var(--text-secondary); resize: none; min-height: 72px; line-height: 1.5; }
@@ -147,9 +149,11 @@ input:checked + .slider::before { transform: translateX(22px); }
 
 .notebook-card { width: 95%; max-width: 650px; height: 85vh; background: #FAFCFB; }
 .notebook-title-display { font-size: 1.4rem; color: var(--text-primary); }
-.notebook-page-container { flex: 1; display: flex; flex-direction: column; gap: 16px; margin-top: 10px; }
+.notebook-card .modal-header .notebook-title-display { flex: 1; min-width: 0; }
+.notebook-page-container { flex: 1; display: flex; flex-direction: column; gap: 16px; margin-top: 10px; min-height: 0; }
 .notebook-textarea {
-    flex: 1; resize: none; border: 1px solid var(--bubble-border);
+    flex: none; width: 100%; height: 420px; min-height: 420px; max-height: 420px;
+    resize: none; border: 1px solid var(--bubble-border);
     border-radius: 6px 16px 16px 6px; border-left: 3px solid #F5D3D3; 
     padding: 32px 28px; font-size: 1.05rem; color: var(--text-primary); outline: none;
     background-image: repeating-linear-gradient(transparent, transparent 31px, var(--bubble-border) 31px, var(--bubble-border) 32px);
@@ -164,6 +168,8 @@ input:checked + .slider::before { transform: translateX(22px); }
 }
 .format-tools { display: none; align-items: center; gap: 6px; }
 .format-toolbar.open .format-tools { display: flex; }
+.header-format-toolbar { flex: 0 0 auto; position: relative; }
+.header-format-toolbar .format-tools { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; padding: 7px; border: 1px solid var(--bubble-border); border-radius: 10px; background: #fff; box-shadow: var(--shadow-soft); }
 .format-toolbar button, .format-toolbar select, .format-toolbar input {
     height: 30px; border: 1px solid var(--bubble-border); border-radius: 8px;
     background: white; color: var(--text-primary); cursor: pointer;
@@ -276,6 +282,7 @@ input:checked + .slider::before { transform: translateX(22px); }
     padding: 2px 6px 2px 0;
     scrollbar-width: thin;
 }
+#contentModal #quickNotesTab .items-list { min-height: 0; }
 
 #contentModal #quickNotesList::-webkit-scrollbar {
     width: 6px;
@@ -308,5 +315,11 @@ input:checked + .slider::before { transform: translateX(22px); }
 #contentModal #notebooksList::-webkit-scrollbar-thumb {
     background: var(--bubble-border);
     border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+    .notebook-textarea { height: 320px; min-height: 320px; max-height: 320px; }
+    .modal-header { align-items: center; }
+    .header-format-toolbar .format-tools { right: auto; left: 0; }
 }
  
