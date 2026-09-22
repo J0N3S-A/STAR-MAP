@@ -121,7 +121,7 @@ input:checked + .slider::before { transform: translateX(22px); }
 }
 .item-card input, .item-card textarea { border: none; background: transparent; outline: none; width: 100%; }
 .item-card input { font-weight: 600; font-size: 1.05rem; color: var(--text-primary); }
-.item-card textarea { font-size: 0.95rem; color: var(--text-secondary); resize: none; min-height: 50px; line-height: 1.5; }
+.item-card textarea { font-size: 0.95rem; color: var(--text-secondary); resize: none; min-height: 72px; line-height: 1.5; }
 
 .item-actions { display: flex; justify-content: flex-end; gap: 16px; margin-top: 8px; border-top: 1px dashed var(--bubble-border); padding-top: 12px;}
 .btn-icon-text { background: none; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); transition: 0.2s;}
@@ -176,18 +176,6 @@ input:checked + .slider::before { transform: translateX(22px); }
 
 #pagesListContainer {
     scrollbar-width: thin;
-}
-
-.page-preview {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
-    white-space: pre-line;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #8A9D93;
-    margin-top: 4px;
 }
 
 #pagesListContainer::-webkit-scrollbar {
