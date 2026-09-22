@@ -108,7 +108,21 @@
                 <button class="close-btn" id="closeNotebookModal">&times;</button>
             </div>
             <div class="notebook-page-container">
-                <textarea id="notebookPageInput" class="notebook-textarea" placeholder="Schreibe deine Gedanken hier..."></textarea>
+                <div class="editor-with-toolbar">
+                    <div class="format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
+                        <button type="button" class="format-menu-toggle" title="Textformatierung">Aa</button>
+                        <div class="format-tools">
+                            <button type="button" class="format-toggle" data-command="bold" title="Fett">B</button>
+                            <input type="color" data-command="foreColor" value="#4A5D54" title="Textfarbe" aria-label="Textfarbe">
+                            <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
+                                <option value="p">Normal</option>
+                                <option value="h3">Überschrift</option>
+                                <option value="blockquote">Zitat</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="notebookPageInput" class="notebook-textarea rich-editor" contenteditable="true" data-editor-type="notebook" role="textbox" aria-multiline="true" data-placeholder="Schreibe deine Gedanken hier..."></div>
+                </div>
                 <div class="page-footer">
                     <button id="prevPageBtn" class="page-btn">&larr; Zurück</button>
                     <span id="pageIndicator" class="page-number">Seite 1</span>

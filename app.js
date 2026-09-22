@@ -340,7 +340,17 @@ function renderContent(id) {
     document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
         <div class="item-card">
             <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
-            <textarea onchange="updateData('quickNotes', ${i}, 'text', this.value)">${n.text}</textarea>
+            <div class="format-toolbar" data-toolbar-for="quickNote-${i}" aria-label="Textformatierung">
+                <button type="button" class="format-menu-toggle" title="Textformatierung">Aa</button>
+                <div class="format-tools">
+                    <button type="button" class="format-toggle" data-command="bold" title="Fett">B</button>
+                    <input type="color" data-command="foreColor" value="#4A5D54" title="Textfarbe" aria-label="Textfarbe">
+                    <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
+                        <option value="p">Normal</option><option value="h3">Überschrift</option><option value="blockquote">Zitat</option>
+                    </select>
+                </div>
+            </div>
+            <div id="quickNote-${i}" class="quick-note-editor rich-editor" contenteditable="true" data-editor-type="quick-note" data-editor-index="${i}" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben...">${toEditorHtml(n.text)}</div>
             <div class="item-actions">
                 <button class="btn-icon-text" onclick="openMoveModal('quickNotes', ${i})">Verschieben</button>
                 <button class="btn-icon-text" style="color:var(--danger-color)" onclick="askDelete('quickNotes', ${i})">Löschen</button>
@@ -423,6 +433,14 @@ function renderContent(id) {
         </div>`).join("");
 }
 
+function toEditorHtml(value) {
+    if (!value) return "";
+    const text = String(value);
+    return /<([a-z][\s\S]*?)>/i.test(text)
+        ? text
+        : text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+}
+
 window.updateData = async (type, index, field, value) => {
     const b = nodesData.get(activeBubbleId);
     b.content[type][index][field] = value;
@@ -458,7 +476,7 @@ window.openNotebook = (index) => {
 function renderNotebookPage() {
     const nb = nodesData.get(activeBubbleId).content.notebooks[currentNotebookIndex];
     const textContent = nb.pages[currentPageIndex] || "";
-    document.getElementById("notebookPageInput").value = textContent;
+    document.getElementById("notebookPageInput").innerHTML = toEditorHtml(textContent);
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
     document.getElementById("prevPageBtn").disabled = currentPageIndex === 0;
     document.getElementById("nextPageBtn").disabled = false;
@@ -532,12 +550,65 @@ window.goToPage = (pageIndex) => {
     document.getElementById("pagesListModal").classList.remove("active");
 };
 
-document.getElementById("notebookPageInput").addEventListener("input", async (e) => {
-    const text = e.target.value;
-    const b = nodesData.get(activeBubbleId);
-    b.content.notebooks[currentNotebookIndex].pages[currentPageIndex] = text;
-    document.getElementById("nextPageBtn").disabled = false;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+document.addEventListener("click", (e) => {
+    const menuToggle = e.target.closest(".format-menu-toggle");
+    if (menuToggle) {
+        menuToggle.closest(".format-toolbar").classList.toggle("open");
+        return;
+    }
+    const control = e.target.closest(".format-toolbar [data-command]");
+    if (!control) return;
+    if (control.tagName !== "BUTTON") return;
+    const toolbar = control.closest(".format-toolbar");
+    const editor = document.getElementById(toolbar.dataset.toolbarFor);
+    if (!editor) return;
+    restoreEditorSelection(editor);
+    editor.focus();
+    document.execCommand(control.dataset.command, false, control.value || null);
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
+document.addEventListener("change", (e) => {
+    const control = e.target.closest(".format-toolbar [data-command]");
+    if (!control || control.tagName === "BUTTON") return;
+    const toolbar = control.closest(".format-toolbar");
+    const editor = document.getElementById(toolbar.dataset.toolbarFor);
+    if (!editor) return;
+    restoreEditorSelection(editor);
+    editor.focus();
+    document.execCommand(control.dataset.command, false, control.value);
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
+let savedEditorSelection = null;
+document.addEventListener("mousedown", (e) => {
+    const control = e.target.closest(".format-toolbar [data-command]");
+    if (!control) return;
+    const editor = document.getElementById(control.closest(".format-toolbar").dataset.toolbarFor);
+    const selection = window.getSelection();
+    if (editor && selection.rangeCount && editor.contains(selection.anchorNode)) {
+        savedEditorSelection = { editor, range: selection.getRangeAt(0).cloneRange() };
+    }
+});
+function restoreEditorSelection(editor) {
+    if (!savedEditorSelection || savedEditorSelection.editor !== editor) return;
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(savedEditorSelection.range);
+}
+
+document.addEventListener("input", async (e) => {
+    const editor = e.target.closest(".rich-editor");
+    if (!editor) return;
+    if (editor.dataset.editorType === "quick-note") {
+        await updateData("quickNotes", Number(editor.dataset.editorIndex), "text", editor.innerHTML);
+    } else if (editor.dataset.editorType === "notebook" && activeBubbleId !== null && currentNotebookIndex !== null) {
+        const b = nodesData.get(activeBubbleId);
+        if (!b) return;
+        b.content.notebooks[currentNotebookIndex].pages[currentPageIndex] = editor.innerHTML;
+        document.getElementById("nextPageBtn").disabled = false;
+        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    }
 });
 
 document.getElementById("prevPageBtn").addEventListener("click", () => {

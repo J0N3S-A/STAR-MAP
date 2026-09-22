@@ -46,7 +46,21 @@
                 <button class="close-btn" id="closeEditModal">&times;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
-                <textarea id="nodeTextInput" placeholder="Text hier eingeben..." style="width: 100%; min-height: 140px; padding: 16px; border-radius: 12px; border: 1px solid var(--bubble-border); outline: none; font-family: inherit; font-size: 14px; color: var(--text-primary); resize: vertical; background: #FAFCFB;"></textarea>
+                <div class="editor-with-toolbar">
+                    <div class="format-toolbar" data-toolbar-for="nodeTextInput" aria-label="Textformatierung">
+                        <button type="button" class="format-menu-toggle" title="Textformatierung">Aa</button>
+                        <div class="format-tools">
+                            <button type="button" class="format-toggle" data-command="bold" title="Fett">B</button>
+                            <input type="color" data-command="foreColor" value="#4A5D54" title="Textfarbe" aria-label="Textfarbe">
+                            <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
+                                <option value="p">Normal</option>
+                                <option value="h3">Überschrift</option>
+                                <option value="blockquote">Zitat</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="nodeTextInput" class="node-text-editor rich-editor" contenteditable="true" data-editor-type="submap-node" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben..."></div>
+                </div>
             </div>
             <div class="confirm-actions">
                 <button class="btn-danger" id="deleteNodeBtn">Löschen</button>

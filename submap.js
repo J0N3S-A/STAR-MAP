@@ -117,8 +117,16 @@ const network = new vis.Network(container, data, options);
 
 function formatLabel(title, text, showText) {
     let label = "<b>" + (title || "Ohne Titel") + "</b>";
-    if (showText && text) label += "\n\n" + text;
+    if (showText && text) label += "<br><br>" + toEditorHtml(text);
     return label;
+}
+
+function toEditorHtml(value) {
+    if (!value) return "";
+    const text = String(value);
+    return /<([a-z][\s\S]*?)>/i.test(text)
+        ? text
+        : text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
 }
 
 async function initSubmap() {
@@ -187,7 +195,7 @@ network.on("doubleClick", (params) => {
         activeNodeId = params.nodes[0];
         const node = subNodesData.get(activeNodeId);
         document.getElementById("nodeTitleInput").value = node.titleData || "";
-        document.getElementById("nodeTextInput").value = node.textData || "";
+        document.getElementById("nodeTextInput").innerHTML = toEditorHtml(node.textData);
         document.getElementById("editNodeModal").classList.add("active");
         
         document.getElementById("deleteNodeBtn").style.display = node.isCentral ? "none" : "block"; 
@@ -207,7 +215,7 @@ document.getElementById("closeEditModal").addEventListener("click", () => docume
 document.getElementById("saveNodeBtn").addEventListener("click", async () => {
     if (activeNodeId) {
         const newTitle = document.getElementById("nodeTitleInput").value;
-        const newText = document.getElementById("nodeTextInput").value;
+        const newText = document.getElementById("nodeTextInput").innerHTML;
         await updateDoc(doc(subNodesRef, activeNodeId), { title: newTitle, text: newText });
         document.getElementById("editNodeModal").classList.remove("active");
     }
@@ -234,3 +242,47 @@ document.getElementById("actionSubConfirmBtn").addEventListener("click", async (
         document.getElementById("confirmSubModal").classList.remove("active");
     }
 });
+
+document.addEventListener("click", (e) => {
+    const menuToggle = e.target.closest(".format-menu-toggle");
+    if (menuToggle) {
+        menuToggle.closest(".format-toolbar").classList.toggle("open");
+        return;
+    }
+    const control = e.target.closest(".format-toolbar [data-command]");
+    if (!control || control.tagName !== "BUTTON") return;
+    const toolbar = control.closest(".format-toolbar");
+    const editor = document.getElementById(toolbar.dataset.toolbarFor);
+    if (!editor) return;
+    restoreEditorSelection(editor);
+    editor.focus();
+    document.execCommand(control.dataset.command, false, control.value || null);
+});
+
+document.addEventListener("change", (e) => {
+    const control = e.target.closest(".format-toolbar [data-command]");
+    if (!control || control.tagName === "BUTTON") return;
+    const toolbar = control.closest(".format-toolbar");
+    const editor = document.getElementById(toolbar.dataset.toolbarFor);
+    if (!editor) return;
+    restoreEditorSelection(editor);
+    editor.focus();
+    document.execCommand(control.dataset.command, false, control.value);
+});
+
+let savedEditorSelection = null;
+document.addEventListener("mousedown", (e) => {
+    const control = e.target.closest(".format-toolbar [data-command]");
+    if (!control) return;
+    const editor = document.getElementById(control.closest(".format-toolbar").dataset.toolbarFor);
+    const selection = window.getSelection();
+    if (editor && selection.rangeCount && editor.contains(selection.anchorNode)) {
+        savedEditorSelection = { editor, range: selection.getRangeAt(0).cloneRange() };
+    }
+});
+function restoreEditorSelection(editor) {
+    if (!savedEditorSelection || savedEditorSelection.editor !== editor) return;
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(savedEditorSelection.range);
+}
