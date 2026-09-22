@@ -318,7 +318,7 @@ input:checked + .slider::before { transform: translateX(22px); }
 }
 
 @media (max-width: 768px) {
-    .notebook-textarea { height: 320px; min-height: 320px; max-height: 320px; }
+    .notebook-textarea { height: 530px; min-height: 530px; max-height: 530px; }
     .modal-header { align-items: center; }
     .header-format-toolbar .format-tools { right: auto; left: 0; }
 }
