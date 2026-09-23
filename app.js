@@ -83,7 +83,7 @@ let activeGroupRecordingIndex = null;
 let isPageStarred = {}; // لتتبع الصفحات المميزة
 let editingQuickNoteIndex = null;
 const RECENT_COLORS_KEY = "star-map-recent-colors";
-const DEFAULT_COLORS = ["#2EC4B6", "#6BBF59", "#FFFFFF", "#F4D35E"];
+const DEFAULT_COLORS = ["#fe019a", "#000000", "#8000f8", "#0400f8"];
 
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
