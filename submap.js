@@ -124,8 +124,14 @@ function formatLabel(title, text, showText) {
 
 function toEditorHtml(value) {
     if (!value) return "";
-    const text = String(value);
-    return /<([a-z][\s\S]*?)>/i.test(text)
+    let text = String(value);
+    // Older saved notes may contain escaped editor markup such as &lt;br&gt;.
+    if (/&lt;br\s*\/?&gt;/i.test(text)) {
+        const decoder = document.createElement("textarea");
+        decoder.innerHTML = text;
+        text = decoder.value;
+    }
+    return /<(br|div|p|h[1-6]|blockquote|strong|b|em|i|u)\b[^>]*>/i.test(text)
         ? text
         : text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
 }
@@ -208,16 +214,29 @@ function openNodeEditor(nodeId) {
     document.getElementById("deleteNodeBtn").style.display = node.isCentral ? "none" : "block";
 }
 
-container.addEventListener("pointerdown", (event) => {
-    const canvasPosition = network.DOMtoCanvas({ x: event.clientX, y: event.clientY });
+function getPointerCoordinates(event) {
+    const touch = event.touches && event.touches[0];
+    return { x: touch ? touch.clientX : event.clientX, y: touch ? touch.clientY : event.clientY };
+}
+
+function startLongPress(event) {
+    const coordinates = getPointerCoordinates(event);
+    const canvasPosition = network.DOMtoCanvas(coordinates);
+    cancelLongPress();
     pressedNodeId = network.getNodeAt(canvasPosition);
     if (!pressedNodeId) return;
+    const node = subNodesData.get(pressedNodeId);
+    // Editing is available only after the short click has made the text visible.
+    if (!node || !node.showText) {
+        pressedNodeId = null;
+        return;
+    }
     longPressTimer = window.setTimeout(() => {
         suppressNextNodeClick = true;
         openNodeEditor(pressedNodeId);
         longPressTimer = null;
     }, 1000);
-});
+}
 
 function cancelLongPress() {
     if (longPressTimer !== null) {
@@ -227,15 +246,14 @@ function cancelLongPress() {
     pressedNodeId = null;
 }
 
-container.addEventListener("pointerup", cancelLongPress);
-container.addEventListener("pointercancel", cancelLongPress);
-container.addEventListener("pointerleave", cancelLongPress);
-
-network.on("doubleClick", (params) => {
-    if (params.nodes.length > 0) {
-        openNodeEditor(params.nodes[0]);
-    }
-});
+container.addEventListener("mousedown", startLongPress);
+container.addEventListener("touchstart", startLongPress, { passive: true });
+container.addEventListener("mouseup", cancelLongPress);
+container.addEventListener("mousemove", cancelLongPress);
+container.addEventListener("mouseleave", cancelLongPress);
+container.addEventListener("touchend", cancelLongPress);
+container.addEventListener("touchcancel", cancelLongPress);
+container.addEventListener("touchmove", cancelLongPress, { passive: true });
 
 document.getElementById("addNodeBasket").addEventListener("click", async () => {
     const center = network.getViewPosition();
