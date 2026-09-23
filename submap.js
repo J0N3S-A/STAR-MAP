@@ -81,6 +81,7 @@ let subNodesData = new vis.DataSet([]);
 let subEdgesData = new vis.DataSet([]);
 let activeNodeId = null;
 let pendingAction = null;
+const RECENT_COLORS_KEY = "star-map-recent-colors";
 
 const subNodesRef = collection(db, `bubbles/${parentBubbleId}/subnodes`);
 const subEdgesRef = collection(db, `bubbles/${parentBubbleId}/subedges`);
@@ -178,6 +179,10 @@ document.getElementById("subConnectSwitch").addEventListener("change", (e) => {
 
 network.on("click", async (params) => {
     if (params.nodes.length > 0) {
+        if (suppressNextNodeClick) {
+            suppressNextNodeClick = false;
+            return;
+        }
         const nodeId = params.nodes[0];
         const node = subNodesData.get(nodeId);
         const newState = !node.showText;
@@ -190,15 +195,45 @@ network.on("click", async (params) => {
     }
 });
 
+let longPressTimer = null;
+let suppressNextNodeClick = false;
+let pressedNodeId = null;
+
+function openNodeEditor(nodeId) {
+    activeNodeId = nodeId;
+    const node = subNodesData.get(activeNodeId);
+    document.getElementById("nodeTitleInput").value = node.titleData || "";
+    document.getElementById("nodeTextInput").innerHTML = toEditorHtml(node.textData);
+    document.getElementById("editNodeModal").classList.add("active");
+    document.getElementById("deleteNodeBtn").style.display = node.isCentral ? "none" : "block";
+}
+
+container.addEventListener("pointerdown", (event) => {
+    const canvasPosition = network.DOMtoCanvas({ x: event.clientX, y: event.clientY });
+    pressedNodeId = network.getNodeAt(canvasPosition);
+    if (!pressedNodeId) return;
+    longPressTimer = window.setTimeout(() => {
+        suppressNextNodeClick = true;
+        openNodeEditor(pressedNodeId);
+        longPressTimer = null;
+    }, 1000);
+});
+
+function cancelLongPress() {
+    if (longPressTimer !== null) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+    pressedNodeId = null;
+}
+
+container.addEventListener("pointerup", cancelLongPress);
+container.addEventListener("pointercancel", cancelLongPress);
+container.addEventListener("pointerleave", cancelLongPress);
+
 network.on("doubleClick", (params) => {
     if (params.nodes.length > 0) {
-        activeNodeId = params.nodes[0];
-        const node = subNodesData.get(activeNodeId);
-        document.getElementById("nodeTitleInput").value = node.titleData || "";
-        document.getElementById("nodeTextInput").innerHTML = toEditorHtml(node.textData);
-        document.getElementById("editNodeModal").classList.add("active");
-        
-        document.getElementById("deleteNodeBtn").style.display = node.isCentral ? "none" : "block"; 
+        openNodeEditor(params.nodes[0]);
     }
 });
 
@@ -243,10 +278,52 @@ document.getElementById("actionSubConfirmBtn").addEventListener("click", async (
     }
 });
 
+function getRecentColors() {
+    try {
+        const colors = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) || "[]");
+        return Array.isArray(colors) ? colors.filter(color => /^#[0-9A-F]{6}$/i.test(color)) : [];
+    } catch (error) {
+        console.warn("Konnte gespeicherte Farben nicht laden:", error);
+        return [];
+    }
+}
+
+function renderRecentColors() {
+    document.querySelectorAll(".custom-colors").forEach(container => {
+        container.innerHTML = getRecentColors().map(color =>
+            `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`
+        ).join("");
+    });
+}
+
+function rememberColor(color) {
+    const normalized = color.toUpperCase();
+    const colors = [normalized, ...getRecentColors().filter(item => item !== normalized)].slice(0, 4);
+    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(colors));
+    renderRecentColors();
+}
+
+function applyEditorColor(editor, color) {
+    if (!/^#[0-9A-F]{6}$/i.test(color)) return;
+    restoreEditorSelection(editor);
+    editor.focus();
+    document.execCommand("foreColor", false, color);
+    rememberColor(color);
+}
+
+renderRecentColors();
+
 document.addEventListener("click", (e) => {
     const menuToggle = e.target.closest(".format-menu-toggle");
     if (menuToggle) {
         menuToggle.closest(".format-toolbar").classList.toggle("open");
+        return;
+    }
+    const colorSwatch = e.target.closest(".color-swatch");
+    if (colorSwatch) {
+        const toolbar = colorSwatch.closest(".format-toolbar");
+        const editor = document.getElementById(toolbar.dataset.toolbarFor);
+        if (editor) applyEditorColor(editor, colorSwatch.dataset.color);
         return;
     }
     const control = e.target.closest(".format-toolbar [data-command]");
@@ -260,19 +337,35 @@ document.addEventListener("click", (e) => {
 });
 
 document.addEventListener("change", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command]");
+    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .hex-color-input");
     if (!control || control.tagName === "BUTTON") return;
     const toolbar = control.closest(".format-toolbar");
     const editor = document.getElementById(toolbar.dataset.toolbarFor);
     if (!editor) return;
+    if (control.classList.contains("hex-color-input")) {
+        applyEditorColor(editor, control.value.trim());
+        control.value = "";
+        return;
+    }
     restoreEditorSelection(editor);
     editor.focus();
-    document.execCommand(control.dataset.command, false, control.value);
+    const selectedValue = control.value;
+    document.execCommand(control.dataset.command, false, selectedValue);
+    if (control.dataset.command === "formatBlock") control.value = selectedValue;
+});
+
+document.addEventListener("input", (e) => {
+    const hexInput = e.target.closest(".hex-color-input");
+    if (!hexInput || !/^#[0-9A-F]{6}$/i.test(hexInput.value.trim())) return;
+    const toolbar = hexInput.closest(".format-toolbar");
+    const editor = document.getElementById(toolbar.dataset.toolbarFor);
+    if (editor) applyEditorColor(editor, hexInput.value.trim());
+    hexInput.value = "";
 });
 
 let savedEditorSelection = null;
 document.addEventListener("mousedown", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command]");
+    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .color-swatch, .format-toolbar .hex-color-input");
     if (!control) return;
     const editor = document.getElementById(control.closest(".format-toolbar").dataset.toolbarFor);
     const selection = window.getSelection();

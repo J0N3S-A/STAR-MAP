@@ -47,7 +47,14 @@
                     <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
                     <div class="format-tools">
                         <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
-                        <input type="color" data-command="foreColor" value="#4A5D54" title="Textfarbe" aria-label="Textfarbe">
+                        <div class="color-swatches" aria-label="Standardfarben">
+                            <button type="button" class="color-swatch" data-color="#2EC4B6" style="background:#2EC4B6" aria-label="Türkis"></button>
+                            <button type="button" class="color-swatch" data-color="#6BBF59" style="background:#6BBF59" aria-label="Grün"></button>
+                            <button type="button" class="color-swatch" data-color="#FFFFFF" style="background:#FFFFFF" aria-label="Weiß"></button>
+                            <button type="button" class="color-swatch" data-color="#F4D35E" style="background:#F4D35E" aria-label="Gelb"></button>
+                        </div>
+                        <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
+                        <input class="hex-color-input" type="text" inputmode="text" maxlength="7" placeholder="#FF5733" aria-label="Hex-Farbcode">
                         <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
                             <option value="p">Normal</option>
                             <option value="h3">Überschrift</option>
