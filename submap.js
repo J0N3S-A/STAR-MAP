@@ -183,27 +183,30 @@ document.getElementById("subConnectSwitch").addEventListener("change", (e) => {
     else network.disableEditMode();
 });
 
+let clickTimer = null;
+let delayedModalTimer = null;
+
+async function toggleNodeText(nodeId) {
+    const node = subNodesData.get(nodeId);
+    if (!node) return;
+    const newState = !node.showText;
+    subNodesData.update({ id: nodeId, label: formatLabel(node.titleData, node.textData, newState), showText: newState });
+    await updateDoc(doc(subNodesRef, nodeId), { showText: newState });
+}
+
 network.on("click", async (params) => {
     if (params.nodes.length > 0) {
-        if (suppressNextNodeClick) {
-            suppressNextNodeClick = false;
-            return;
-        }
         const nodeId = params.nodes[0];
-        const node = subNodesData.get(nodeId);
-        const newState = !node.showText;
-        
-        subNodesData.update({ id: nodeId, label: formatLabel(node.titleData, node.textData, newState), showText: newState });
-        await updateDoc(doc(subNodesRef, nodeId), { showText: newState });
+        clearTimeout(clickTimer);
+        clickTimer = window.setTimeout(() => {
+            clickTimer = null;
+            toggleNodeText(nodeId);
+        }, 250);
     } else if (params.edges.length > 0) {
         pendingAction = { type: 'edge', id: params.edges[0] };
         document.getElementById("confirmSubModal").classList.add("active");
     }
 });
-
-let longPressTimer = null;
-let suppressNextNodeClick = false;
-let pressedNodeId = null;
 
 function openNodeEditor(nodeId) {
     activeNodeId = nodeId;
@@ -214,46 +217,24 @@ function openNodeEditor(nodeId) {
     document.getElementById("deleteNodeBtn").style.display = node.isCentral ? "none" : "block";
 }
 
-function getPointerCoordinates(event) {
-    const touch = event.touches && event.touches[0];
-    return { x: touch ? touch.clientX : event.clientX, y: touch ? touch.clientY : event.clientY };
-}
+network.on("doubleClick", (params) => {
+    if (params.nodes.length === 0) return;
+    const nodeId = params.nodes[0];
+    clearTimeout(clickTimer);
+    clearTimeout(delayedModalTimer);
 
-function startLongPress(event) {
-    const coordinates = getPointerCoordinates(event);
-    const canvasPosition = network.DOMtoCanvas(coordinates);
-    cancelLongPress();
-    pressedNodeId = network.getNodeAt(canvasPosition);
-    if (!pressedNodeId) return;
-    const node = subNodesData.get(pressedNodeId);
-    // Editing is available only after the short click has made the text visible.
-    if (!node || !node.showText) {
-        pressedNodeId = null;
-        return;
+    const node = subNodesData.get(nodeId);
+    if (!node) return;
+    if (!node.showText) {
+        subNodesData.update({ id: nodeId, label: formatLabel(node.titleData, node.textData, true), showText: true });
+        updateDoc(doc(subNodesRef, nodeId), { showText: true });
     }
-    longPressTimer = window.setTimeout(() => {
-        suppressNextNodeClick = true;
-        openNodeEditor(pressedNodeId);
-        longPressTimer = null;
+
+    delayedModalTimer = window.setTimeout(() => {
+        delayedModalTimer = null;
+        if (subNodesData.get(nodeId)) openNodeEditor(nodeId);
     }, 1000);
-}
-
-function cancelLongPress() {
-    if (longPressTimer !== null) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-    }
-    pressedNodeId = null;
-}
-
-container.addEventListener("mousedown", startLongPress);
-container.addEventListener("touchstart", startLongPress, { passive: true });
-container.addEventListener("mouseup", cancelLongPress);
-container.addEventListener("mousemove", cancelLongPress);
-container.addEventListener("mouseleave", cancelLongPress);
-container.addEventListener("touchend", cancelLongPress);
-container.addEventListener("touchcancel", cancelLongPress);
-container.addEventListener("touchmove", cancelLongPress, { passive: true });
+});
 
 document.getElementById("addNodeBasket").addEventListener("click", async () => {
     const center = network.getViewPosition();
