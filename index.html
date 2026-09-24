@@ -102,7 +102,9 @@
     <div class="modal-overlay" id="notebookModal" style="z-index: 110;">
         <div class="modal-card notebook-card">
             <div class="modal-header">
-                <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
+                <div class="notebook-header-controls">
+                    <button id="starBtn" class="page-btn" title="Seite markieren" aria-label="Seite markieren">⭐</button>
+                    <div class="notebook-header-actions">
                 <div class="format-toolbar header-format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
                     <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
                     <div class="format-tools">
@@ -122,10 +124,12 @@
                         </select>
                     </div>
                 </div>
-                <button id="starBtn" class="page-btn" title="Seite markieren" aria-label="Seite markieren">⭐</button>
-                <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen" aria-label="Alle Seiten anzeigen">📋 Seiten</button>
+                <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen" aria-label="Alle Seiten anzeigen">📋</button>
                 <button id="reorderPageBtn" class="page-btn" title="Aktuelle Seite verschieben" aria-label="Aktuelle Seite verschieben">↕</button>
                 <button class="close-btn" id="closeNotebookModal" aria-label="Notizbuch schließen">&times;</button>
+                    </div>
+                </div>
+                <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
             </div>
             <div class="notebook-page-container">
                 <div class="editor-with-toolbar">
