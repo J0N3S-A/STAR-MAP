@@ -105,7 +105,10 @@
                 <div class="notebook-header-controls">
                     <button id="starBtn" class="page-btn" title="Seite markieren" aria-label="Seite markieren">⭐</button>
                     <div class="notebook-header-actions">
-                <div class="format-toolbar header-format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
+                <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen" aria-label="Alle Seiten anzeigen">📋</button>
+                <button id="reorderPageBtn" class="page-btn" title="Aktuelle Seite verschieben" aria-label="Aktuelle Seite verschieben">↕</button>
+                <button class="close-btn" id="closeNotebookModal" aria-label="Notizbuch schließen">&times;</button>
+                 <div class="format-toolbar header-format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
                     <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
                     <div class="format-tools">
                         <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
@@ -124,9 +127,6 @@
                         </select>
                     </div>
                 </div>
-                <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen" aria-label="Alle Seiten anzeigen">📋</button>
-                <button id="reorderPageBtn" class="page-btn" title="Aktuelle Seite verschieben" aria-label="Aktuelle Seite verschieben">↕</button>
-                <button class="close-btn" id="closeNotebookModal" aria-label="Notizbuch schließen">&times;</button>
                     </div>
                 </div>
                 <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
