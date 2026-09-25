@@ -102,9 +102,10 @@
     <div class="modal-overlay" id="notebookModal" style="z-index: 110;">
         <div class="modal-card notebook-card">
             <div class="modal-header">
-                <div class="notebook-header-controls">
-                    <button id="starBtn" class="page-btn" title="Seite markieren" aria-label="Seite markieren">⭐</button>
+            <div class="notebook-header-controls">
                     <div class="notebook-header-actions">
+                     <button id="starBtn" class="page-btn" title="Seite markieren" aria-label="Seite markieren" style="color: rgb(138, 157, 147); opacity: 0.6;">⭐</button>
+                        
                 <div class="format-toolbar header-format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
                     <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung" aria-expanded="false">Aa</button>
                     <div class="format-tools">
@@ -113,7 +114,7 @@
                             <button type="button" class="format-view-option" data-view-target="fonts">Schriftarten</button>
                             <button type="button" class="format-view-option" data-view-target="empty" aria-label="Weitere Optionen">⋯</button>
                         </section>
-                        <section class="format-view color-format-view" data-format-view="colors" aria-label="Farbauswahl" hidden>
+                        <section class="format-view color-format-view" data-format-view="colors" aria-label="Farbauswahl" hidden="">
                             <div class="format-view-heading">
                                 <button type="button" class="format-back-btn" data-view-target="main">← Zurück</button>
                                 <strong>Farben</strong>
@@ -126,7 +127,7 @@
                                 <div class="color-fields-column">
                                     <label for="currentColorHex">Aktueller HEX-Code</label>
                                     <div class="hex-copy-row">
-                                        <input id="currentColorHex" class="current-color-hex" type="text" readonly aria-label="Aktueller HEX-Code">
+                                        <input id="currentColorHex" class="current-color-hex" type="text" readonly="" aria-label="Aktueller HEX-Code">
                                         <button type="button" class="copy-hex-btn" aria-label="HEX-Code kopieren" title="HEX-Code kopieren">Kopieren</button>
                                     </div>
                                     <label for="manualColorHex">HEX-Code eingeben</label>
@@ -134,16 +135,16 @@
                                 </div>
                                 <div class="color-palette-column">
                                     <span>Standardfarben</span>
-                                    <div class="color-swatches" aria-label="Standardfarben"></div>
+                                    <div class="color-swatches" aria-label="Standardfarben"><button type="button" class="color-swatch selected" data-color="#fe019a" style="background:#fe019a" aria-label="Standardfarbe #fe019a" aria-pressed="true"></button><button type="button" class="color-swatch" data-color="#000000" style="background:#000000" aria-label="Standardfarbe #000000" aria-pressed="false"></button><button type="button" class="color-swatch" data-color="#8000f8" style="background:#8000f8" aria-label="Standardfarbe #8000f8" aria-pressed="false"></button><button type="button" class="color-swatch" data-color="#0400f8" style="background:#0400f8" aria-label="Standardfarbe #0400f8" aria-pressed="false"></button></div>
                                     <span>Zuletzt verwendet</span>
-                                    <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
+                                    <div class="custom-colors" aria-label="Zuletzt verwendete Farben"><button type="button" class="color-swatch" data-color="#8E4370" style="background:#8E4370" aria-label="Farbe #8E4370" aria-pressed="false"></button><button type="button" class="color-swatch selected" data-color="#FE019A" style="background:#FE019A" aria-label="Farbe #FE019A" aria-pressed="true"></button><button type="button" class="color-swatch" data-color="#0400F8" style="background:#0400F8" aria-label="Farbe #0400F8" aria-pressed="false"></button><button type="button" class="color-swatch" data-color="#000000" style="background:#000000" aria-label="Farbe #000000" aria-pressed="false"></button></div>
                                 </div>
                             </div>
                             <div class="format-view-footer">
                                 <button type="button" class="confirm-color-btn">✔ Bestätigen</button>
                             </div>
                         </section>
-                        <section class="format-view font-format-view" data-format-view="fonts" aria-label="Schriftart und Stil" hidden>
+                        <section class="format-view font-format-view" data-format-view="fonts" aria-label="Schriftart und Stil" hidden="">
                             <div class="format-view-heading">
                                 <button type="button" class="format-back-btn" data-view-target="main">← Zurück</button>
                                 <strong>Schriftarten</strong>
@@ -169,16 +170,11 @@
                             </select>
                             <button type="button" class="format-toggle font-bold-toggle" data-command="bold" aria-pressed="false" title="Fett ein-/ausschalten">B&nbsp; Fett</button>
                         </section>
-                        <section class="format-view" data-format-view="empty" aria-label="Weitere Optionen" hidden>
+                        <section class="format-view" data-format-view="empty" aria-label="Weitere Optionen" hidden="">
                             <div class="format-view-heading">
                                 <button type="button" class="format-back-btn" data-view-target="main">← Zurück</button>
                             </div>
                         </section>
-                    </div>
-                </div>
-                <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen" aria-label="Alle Seiten anzeigen">📋</button>
-                <button id="reorderPageBtn" class="page-btn" title="Aktuelle Seite verschieben" aria-label="Aktuelle Seite verschieben">↕</button>
-                <button class="close-btn" id="closeNotebookModal" aria-label="Notizbuch schließen">&times;</button>
                     </div>
                 </div>
                 <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
