@@ -84,6 +84,7 @@ let isPageStarred = {}; // لتتبع الصفحات المميزة
 let editingQuickNoteIndex = null;
 const RECENT_COLORS_KEY = "star-map-recent-colors";
 const DEFAULT_COLORS = ["#fe019a", "#000000", "#8000f8", "#0400f8"];
+let stagedFormatColor = DEFAULT_COLORS[0];
 
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
@@ -475,11 +476,18 @@ function rememberColor(color) {
 }
 
 function renderRecentColors() {
+    const defaultColors = document.querySelector(".color-format-view .color-swatches");
+    if (defaultColors) {
+        defaultColors.innerHTML = DEFAULT_COLORS.map(color =>
+            `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Standardfarbe ${color}"></button>`
+        ).join("");
+    }
     document.querySelectorAll(".custom-colors").forEach(container => {
         container.innerHTML = getRecentColors().map(color =>
             `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`
         ).join("");
     });
+    updateSelectedPaletteColor();
 }
 
 function applyEditorColor(editor, color) {
@@ -490,6 +498,47 @@ function applyEditorColor(editor, color) {
     rememberColor(color);
     editor.dispatchEvent(new Event("input", { bubbles: true }));
 }
+
+function updateSelectedPaletteColor() {
+    document.querySelectorAll(".color-format-view .color-swatch").forEach(swatch => {
+        const selected = swatch.dataset.color.toUpperCase() === stagedFormatColor.toUpperCase();
+        swatch.classList.toggle("selected", selected);
+        swatch.setAttribute("aria-pressed", String(selected));
+    });
+}
+
+function setStagedFormatColor(color, clearManualInput = true) {
+    if (!/^#[0-9A-F]{6}$/i.test(color)) return false;
+    stagedFormatColor = color.toUpperCase();
+    document.getElementById("notebookColorPicker").value = stagedFormatColor;
+    document.getElementById("currentColorHex").value = stagedFormatColor;
+    if (clearManualInput) {
+        document.getElementById("manualColorHex").value = "";
+        document.getElementById("manualColorHex").removeAttribute("aria-invalid");
+    }
+    document.querySelector(".confirm-color-btn").disabled = false;
+    updateSelectedPaletteColor();
+    return true;
+}
+
+function setFormatView(toolbar, viewName) {
+    toolbar.querySelectorAll("[data-format-view]").forEach(view => {
+        const active = view.dataset.formatView === viewName;
+        view.hidden = !active;
+        view.classList.toggle("active", active);
+    });
+}
+
+function executeFormatCommand(toolbar, command, value = null) {
+    const editor = document.getElementById(toolbar.dataset.toolbarFor);
+    if (!editor) return;
+    restoreEditorSelection(editor);
+    editor.focus();
+    document.execCommand(command, false, value);
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+renderRecentColors();
 
 document.addEventListener("focusin", (event) => {
     const editor = event.target.closest(".quick-note-editor");
@@ -633,16 +682,63 @@ document.getElementById("reorderPageBtn").addEventListener("click", async () => 
     renderNotebookPage();
 });
 
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
     const menuToggle = e.target.closest(".format-menu-toggle");
     if (menuToggle) {
-        menuToggle.closest(".format-toolbar").classList.toggle("open");
+        const toolbar = menuToggle.closest(".format-toolbar");
+        const isOpen = toolbar.classList.toggle("open");
+        menuToggle.setAttribute("aria-expanded", String(isOpen));
+        if (isOpen) {
+            setFormatView(toolbar, "main");
+            setStagedFormatColor(stagedFormatColor);
+        }
+        return;
+    }
+    const viewButton = e.target.closest(".format-view-option, .format-back-btn");
+    if (viewButton) {
+        const toolbar = viewButton.closest(".format-toolbar");
+        const viewName = viewButton.dataset.viewTarget;
+        setFormatView(toolbar, viewName);
+        if (viewName === "colors") setStagedFormatColor(stagedFormatColor);
+        return;
+    }
+    const copyHexButton = e.target.closest(".copy-hex-btn");
+    if (copyHexButton) {
+        const hexInput = copyHexButton.closest(".format-view").querySelector(".current-color-hex");
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(hexInput.value);
+            } else {
+                hexInput.select();
+                if (!document.execCommand("copy")) throw new Error("Kopieren wurde vom Browser abgelehnt.");
+            }
+            copyHexButton.textContent = "Kopiert";
+            window.setTimeout(() => { copyHexButton.textContent = "Kopieren"; }, 1200);
+        } catch (error) {
+            console.error("HEX-Farbcode konnte nicht kopiert werden:", error);
+            alert("Der HEX-Farbcode konnte nicht kopiert werden.");
+        }
+        return;
+    }
+    const confirmColorButton = e.target.closest(".confirm-color-btn");
+    if (confirmColorButton) {
+        const toolbar = confirmColorButton.closest(".format-toolbar");
+        const editor = document.getElementById(toolbar.dataset.toolbarFor);
+        if (editor) {
+            applyEditorColor(editor, stagedFormatColor);
+            toolbar.classList.remove("open");
+            toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
+        }
         return;
     }
     const colorSwatch = e.target.closest(".color-swatch");
     if (colorSwatch) {
         const toolbar = colorSwatch.closest(".format-toolbar");
         const editor = document.getElementById(toolbar.dataset.toolbarFor);
+        if (colorSwatch.closest(".color-format-view")) {
+            setStagedFormatColor(colorSwatch.dataset.color);
+            return;
+        }
         if (editor) applyEditorColor(editor, colorSwatch.dataset.color);
         return;
     }
@@ -655,15 +751,39 @@ document.addEventListener("click", (e) => {
     restoreEditorSelection(editor);
     editor.focus();
     document.execCommand(control.dataset.command, false, control.value || null);
+    if (control.dataset.command === "bold" && control.classList.contains("font-bold-toggle")) {
+        control.setAttribute("aria-pressed", String(document.queryCommandState("bold")));
+    }
     editor.dispatchEvent(new Event("input", { bubbles: true }));
 });
 
+document.addEventListener("click", (event) => {
+    const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="notebookPageInput"].open');
+    if (toolbar && !toolbar.contains(event.target)) {
+        toolbar.classList.remove("open");
+        toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="notebookPageInput"].open');
+    if (!toolbar) return;
+    toolbar.classList.remove("open");
+    toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
+});
+
 document.addEventListener("change", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .hex-color-input");
+    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .hex-color-input, .format-toolbar .font-format-select");
     if (!control || control.tagName === "BUTTON") return;
     const toolbar = control.closest(".format-toolbar");
     const editor = document.getElementById(toolbar.dataset.toolbarFor);
     if (!editor) return;
+    if (control.classList.contains("font-format-select")) {
+        const [kind, value] = control.value.split(/:(.+)/);
+        executeFormatCommand(toolbar, kind === "font" ? "fontName" : "formatBlock", value);
+        return;
+    }
     if (control.classList.contains("hex-color-input")) {
         applyEditorColor(editor, control.value.trim());
         control.value = "";
@@ -678,6 +798,19 @@ document.addEventListener("change", (e) => {
 });
 
 document.addEventListener("input", (e) => {
+    const colorPicker = e.target.closest(".hsl-color-picker");
+    if (colorPicker) {
+        setStagedFormatColor(colorPicker.value);
+        return;
+    }
+    const manualHex = e.target.closest(".manual-color-hex");
+    if (manualHex) {
+        const validColor = /^#[0-9A-F]{6}$/i.test(manualHex.value.trim());
+        manualHex.toggleAttribute("aria-invalid", manualHex.value.length > 0 && !validColor);
+        document.querySelector(".confirm-color-btn").disabled = manualHex.value.length > 0 && !validColor;
+        if (validColor) setStagedFormatColor(manualHex.value.trim(), false);
+        return;
+    }
     const hexInput = e.target.closest(".hex-color-input");
     if (!hexInput || !/^#[0-9A-F]{6}$/i.test(hexInput.value.trim())) return;
     const toolbar = hexInput.closest(".format-toolbar");
@@ -688,7 +821,7 @@ document.addEventListener("input", (e) => {
 
 let savedEditorSelection = null;
 document.addEventListener("mousedown", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .color-swatch, .format-toolbar .hex-color-input");
+    const control = e.target.closest(".format-toolbar button, .format-toolbar input, .format-toolbar select");
     if (!control) return;
     const editor = document.getElementById(control.closest(".format-toolbar").dataset.toolbarFor);
     const selection = window.getSelection();

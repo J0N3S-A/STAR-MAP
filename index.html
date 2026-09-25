@@ -105,28 +105,80 @@
                 <div class="notebook-header-controls">
                     <button id="starBtn" class="page-btn" title="Seite markieren" aria-label="Seite markieren">⭐</button>
                     <div class="notebook-header-actions">
+                <div class="format-toolbar header-format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
+                    <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung" aria-expanded="false">Aa</button>
+                    <div class="format-tools">
+                        <section class="format-view active" data-format-view="main" aria-label="Formatierungsmenü">
+                            <button type="button" class="format-view-option" data-view-target="colors">Farben</button>
+                            <button type="button" class="format-view-option" data-view-target="fonts">Schriftarten</button>
+                            <button type="button" class="format-view-option" data-view-target="empty" aria-label="Weitere Optionen">⋯</button>
+                        </section>
+                        <section class="format-view color-format-view" data-format-view="colors" aria-label="Farbauswahl" hidden>
+                            <div class="format-view-heading">
+                                <button type="button" class="format-back-btn" data-view-target="main">← Zurück</button>
+                                <strong>Farben</strong>
+                            </div>
+                            <div class="color-picker-layout">
+                                <div class="color-picker-column">
+                                    <label for="notebookColorPicker">Farbton auswählen</label>
+                                    <input id="notebookColorPicker" class="hsl-color-picker" type="color" value="#fe019a" aria-label="Farbe auswählen">
+                                </div>
+                                <div class="color-fields-column">
+                                    <label for="currentColorHex">Aktueller HEX-Code</label>
+                                    <div class="hex-copy-row">
+                                        <input id="currentColorHex" class="current-color-hex" type="text" readonly aria-label="Aktueller HEX-Code">
+                                        <button type="button" class="copy-hex-btn" aria-label="HEX-Code kopieren" title="HEX-Code kopieren">Kopieren</button>
+                                    </div>
+                                    <label for="manualColorHex">HEX-Code eingeben</label>
+                                    <input id="manualColorHex" class="manual-color-hex" type="text" inputmode="text" maxlength="7" placeholder="#FF5733" aria-label="HEX-Code eingeben">
+                                </div>
+                                <div class="color-palette-column">
+                                    <span>Standardfarben</span>
+                                    <div class="color-swatches" aria-label="Standardfarben"></div>
+                                    <span>Zuletzt verwendet</span>
+                                    <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
+                                </div>
+                            </div>
+                            <div class="format-view-footer">
+                                <button type="button" class="confirm-color-btn">✔ Bestätigen</button>
+                            </div>
+                        </section>
+                        <section class="format-view font-format-view" data-format-view="fonts" aria-label="Schriftart und Stil" hidden>
+                            <div class="format-view-heading">
+                                <button type="button" class="format-back-btn" data-view-target="main">← Zurück</button>
+                                <strong>Schriftarten</strong>
+                            </div>
+                            <label for="notebookFontSelect">Schriftstil und Schriftart</label>
+                            <select id="notebookFontSelect" class="font-format-select" aria-label="Schriftstil und Schriftart">
+                                <optgroup label="Textstil">
+                                    <option value="block:p">Normal</option>
+                                    <option value="block:h2">Überschrift 1</option>
+                                    <option value="block:h3">Überschrift 2</option>
+                                    <option value="block:h4">Überschrift 3</option>
+                                    <option value="block:blockquote">Zitat</option>
+                                </optgroup>
+                                <optgroup label="Schriftart">
+                                    <option value="font:Arial">Arial</option>
+                                    <option value="font:Georgia">Georgia</option>
+                                    <option value="font:Verdana">Verdana</option>
+                                    <option value="font:Trebuchet MS">Trebuchet MS</option>
+                                    <option value="font:Courier New">Courier New</option>
+                                    <option value="font:Times New Roman">Times New Roman</option>
+                                    <option value="font:Plus Jakarta Sans">Plus Jakarta Sans</option>
+                                </optgroup>
+                            </select>
+                            <button type="button" class="format-toggle font-bold-toggle" data-command="bold" aria-pressed="false" title="Fett ein-/ausschalten">B&nbsp; Fett</button>
+                        </section>
+                        <section class="format-view" data-format-view="empty" aria-label="Weitere Optionen" hidden>
+                            <div class="format-view-heading">
+                                <button type="button" class="format-back-btn" data-view-target="main">← Zurück</button>
+                            </div>
+                        </section>
+                    </div>
+                </div>
                 <button id="pagesListBtn" class="page-btn" title="Alle Seiten anzeigen" aria-label="Alle Seiten anzeigen">📋</button>
                 <button id="reorderPageBtn" class="page-btn" title="Aktuelle Seite verschieben" aria-label="Aktuelle Seite verschieben">↕</button>
                 <button class="close-btn" id="closeNotebookModal" aria-label="Notizbuch schließen">&times;</button>
-                 <div class="format-toolbar header-format-toolbar" data-toolbar-for="notebookPageInput" aria-label="Textformatierung">
-                    <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
-                    <div class="format-tools">
-                        <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
-                        <div class="color-swatches" aria-label="Standardfarben">
-                            <button type="button" class="color-swatch" data-color="#fe019a" style="background:#fe019a" aria-label="Neon pink"></button>
-                            <button type="button" class="color-swatch" data-color="#000000" style="background:#000000" aria-label="Schwarz"></button>
-                            <button type="button" class="color-swatch" data-color="#8000f8" style="background:#8000f8" aria-label="Lela"></button>
-                            <button type="button" class="color-swatch" data-color="#0400f8" style="background:#0400f8" aria-label="Blau"></button>
-                        </div>
-                        <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
-                        <input class="hex-color-input" type="text" inputmode="text" maxlength="7" placeholder="#FF5733" aria-label="Hex-Farbcode">
-                        <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
-                            <option value="p">Normal</option>
-                            <option value="h3">Überschrift</option>
-                            <option value="blockquote">Zitat</option>
-                        </select>
-                    </div>
-                </div>
                     </div>
                 </div>
                 <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
