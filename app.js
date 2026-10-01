@@ -560,15 +560,24 @@ document.getElementById("addQuickNoteBtn").addEventListener("click", async () =>
 document.getElementById("addNotebookBtn").addEventListener("click", async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.notebooks) b.content.notebooks = [];
-    b.content.notebooks.push({ title: "Neues Notizbuch", pages: [""] });
+    b.content.notebooks.push({ title: "Neues Notizbuch", pages: [""], pageTitles: [""] });
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 });
+
+function ensureNotebookPageTitles(notebook) {
+    if (!Array.isArray(notebook.pageTitles)) notebook.pageTitles = [];
+    notebook.pages.forEach((_, index) => {
+        if (typeof notebook.pageTitles[index] !== "string") notebook.pageTitles[index] = "";
+    });
+    notebook.pageTitles.length = notebook.pages.length;
+}
 
 window.openNotebook = (index) => {
     currentNotebookIndex = index; currentPageIndex = 0;
     const b = nodesData.get(activeBubbleId);
     const nb = b.content.notebooks[index];
     if (!nb.pages) { nb.pages = [nb.text || ""]; delete nb.text; }
+    ensureNotebookPageTitles(nb);
     document.getElementById("activeNotebookTitle").innerText = nb.title;
     document.getElementById("notebookModal").classList.add("active");
     loadStarredPages();
@@ -578,6 +587,8 @@ window.openNotebook = (index) => {
 
 function renderNotebookPage() {
     const nb = nodesData.get(activeBubbleId).content.notebooks[currentNotebookIndex];
+    ensureNotebookPageTitles(nb);
+    document.getElementById("notebookPageTitleInput").value = nb.pageTitles[currentPageIndex] || "";
     const textContent = nb.pages[currentPageIndex] || "";
     document.getElementById("notebookPageInput").innerHTML = toEditorHtml(textContent);
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
@@ -656,6 +667,7 @@ window.goToPage = (pageIndex) => {
 document.getElementById("reorderPageBtn").addEventListener("click", async () => {
     const b = nodesData.get(activeBubbleId);
     const nb = b.content.notebooks[currentNotebookIndex];
+    ensureNotebookPageTitles(nb);
     const requestedPage = window.prompt(`Neue Position für Seite (1-${nb.pages.length})`, String(currentPageIndex + 1));
     if (requestedPage === null) return;
     const targetIndex = Number(requestedPage) - 1;
@@ -667,11 +679,13 @@ document.getElementById("reorderPageBtn").addEventListener("click", async () => 
 
     const entries = nb.pages.map((text, index) => ({
         text,
+        title: nb.pageTitles[index],
         starred: Array.isArray(nb.starred) && nb.starred.includes(index)
     }));
     const [movedEntry] = entries.splice(currentPageIndex, 1);
     entries.splice(targetIndex, 0, movedEntry);
     nb.pages = entries.map(entry => entry.text);
+    nb.pageTitles = entries.map(entry => entry.title);
     nb.starred = entries.reduce((starred, entry, index) => {
         if (entry.starred) starred.push(index);
         return starred;
@@ -837,6 +851,16 @@ function restoreEditorSelection(editor) {
 }
 
 document.addEventListener("input", async (e) => {
+    if (e.target.id === "notebookPageTitleInput" && activeBubbleId !== null && currentNotebookIndex !== null) {
+        const b = nodesData.get(activeBubbleId);
+        if (!b) return;
+        const notebook = b.content.notebooks[currentNotebookIndex];
+        ensureNotebookPageTitles(notebook);
+        notebook.pageTitles[currentPageIndex] = e.target.value;
+        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        return;
+    }
+
     const editor = e.target.closest(".rich-editor");
     if (!editor) return;
     if (editor.dataset.editorType === "quick-note") {
@@ -869,7 +893,9 @@ btn.addEventListener("pointerdown", () => {
         if (nb.pages[lastPageIndex].trim() === "") {
             currentPageIndex = lastPageIndex;
         } else {
+            ensureNotebookPageTitles(nb);
             nb.pages.push("");
+            nb.pageTitles.push("");
             currentPageIndex = nb.pages.length - 1;
             await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
         }
@@ -885,7 +911,11 @@ btn.addEventListener("pointerup", async () => {
         const nb = b.content.notebooks[currentNotebookIndex];
         if (nb.pages[currentPageIndex].trim() !== "") {
             currentPageIndex++;
-            if (currentPageIndex >= nb.pages.length) nb.pages.push("");
+            if (currentPageIndex >= nb.pages.length) {
+                ensureNotebookPageTitles(nb);
+                nb.pages.push("");
+                nb.pageTitles.push("");
+            }
             await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
             renderNotebookPage();
         }
