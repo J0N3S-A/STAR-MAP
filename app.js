@@ -326,6 +326,15 @@ document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
     if (activeBubbleId) updateDoc(doc(db, "bubbles", activeBubbleId), { title: e.target.value });
 });
 
+window.toggleQuickNoteExpansion = (index, button) => {
+    const editor = document.getElementById(`quickNote-${index}`);
+    const isExpanded = editor.classList.toggle("expanded");
+    const label = isExpanded ? "Notiz einklappen" : "Notiz vollständig anzeigen";
+    button.setAttribute("aria-expanded", String(isExpanded));
+    button.setAttribute("aria-label", label);
+    button.title = label;
+};
+
 function renderContent(id) {
     const bubble = nodesData.get(id);
     if (!bubble) return;
@@ -362,6 +371,9 @@ function renderContent(id) {
             </div>
             <div id="quickNote-${i}" class="quick-note-editor rich-editor" contenteditable="true" data-editor-type="quick-note" data-editor-index="${i}" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben...">${toEditorHtml(n.text)}</div>
             <div class="item-actions">
+                <button type="button" class="quick-note-expand-btn" aria-label="Notiz vollständig anzeigen" aria-expanded="false" title="Notiz vollständig anzeigen" onclick="toggleQuickNoteExpansion(${i}, this)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
                 <button class="btn-icon-text" onclick="openMoveModal('quickNotes', ${i})">Verschieben</button>
                 <button class="btn-icon-text" style="color:var(--danger-color)" onclick="askDelete('quickNotes', ${i})">Löschen</button>
             </div>

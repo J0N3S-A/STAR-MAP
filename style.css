@@ -128,6 +128,18 @@ input:checked + .slider::before { transform: translateX(22px); }
 .item-actions { display: flex; justify-content: flex-end; gap: 16px; margin-top: 8px; border-top: 1px dashed var(--bubble-border); padding-top: 12px;}
 .btn-icon-text { background: none; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); transition: 0.2s;}
 .btn-icon-text:hover { color: var(--text-primary); }
+.quick-note-expand-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; padding: 4px; margin-right: auto;
+    border: 1px solid var(--bubble-border); border-radius: 8px;
+    background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.quick-note-expand-btn:hover { background: var(--accent-soft); color: var(--text-primary); }
+.quick-note-expand-btn svg {
+    width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+    transition: transform 0.2s;
+}
+.quick-note-expand-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 
 #notebooksList { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .notebook-cover {
@@ -379,6 +391,7 @@ input:checked + .slider::before { transform: translateX(22px); }
 .format-toolbar input { width: 32px; padding: 2px; }
 .hex-color-input { width: 78px !important; height: 30px; padding: 0 6px !important; font: inherit; font-size: 11px !important; }
 .quick-note-editor { max-height: 4.5em; min-height: 4.5em; overflow-y: auto; line-height: 1.5; padding-right: 4px; }
+.quick-note-editor.expanded { max-height: none; overflow-y: visible; }
 .rich-editor {
     user-select: text; white-space: pre-wrap; overflow-y: auto;
 }
