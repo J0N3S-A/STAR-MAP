@@ -82,6 +82,8 @@ let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
 let isPageStarred = {}; // لتتبع الصفحات المميزة
 let editingQuickNoteIndex = null;
+let activeQuickNoteModalIndex = null;
+let movingQuickNoteIndex = null;
 const RECENT_COLORS_KEY = "star-map-recent-colors";
 const DEFAULT_COLORS = ["#fe019a", "#000000", "#8000f8", "#0400f8"];
 let stagedFormatColor = DEFAULT_COLORS[0];
@@ -322,18 +324,96 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 document.getElementById("closeContentModal").addEventListener("click", () => document.getElementById("contentModal").classList.remove("active"));
+document.getElementById("closeQuickNoteModal").addEventListener("click", () => {
+    document.getElementById("quickNoteModal").classList.remove("active");
+    activeQuickNoteModalIndex = null;
+});
 document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
     if (activeBubbleId) updateDoc(doc(db, "bubbles", activeBubbleId), { title: e.target.value });
 });
 
-window.toggleQuickNoteExpansion = (index, button) => {
-    const editor = document.getElementById(`quickNote-${index}`);
-    const isExpanded = editor.classList.toggle("expanded");
-    const label = isExpanded ? "Notiz einklappen" : "Notiz vollständig anzeigen";
-    button.setAttribute("aria-expanded", String(isExpanded));
-    button.setAttribute("aria-label", label);
-    button.title = label;
+window.openQuickNoteModal = (index) => {
+    const bubble = nodesData.get(activeBubbleId);
+    const note = bubble.content.quickNotes[index];
+    activeQuickNoteModalIndex = index;
+    const titleInput = document.getElementById("quickNoteModalTitle");
+    const editor = document.getElementById("quickNoteModalEditor");
+    titleInput.value = note.title || "";
+    editor.dataset.editorIndex = String(index);
+    editor.innerHTML = toEditorHtml(note.text);
+    const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="quickNoteModalEditor"]');
+    toolbar.classList.remove("open");
+    toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
+    setFormatView(toolbar, "main");
+    document.getElementById("quickNoteModal").classList.add("active");
 };
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[character]);
+}
+
+function renderQuickNoteCard(note, index) {
+    return `
+        <div class="item-card">
+            <div class="item-title-row">
+                <input type="text" value="${escapeHtml(note.title)}" onchange="updateData('quickNotes', ${index}, 'title', this.value)">
+                <div class="format-toolbar header-format-toolbar" data-toolbar-for="quickNote-${index}" aria-label="Textformatierung">
+                    <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
+                    <div class="format-tools">
+                        <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
+                        <div class="color-swatches" aria-label="Standardfarben">
+                            ${DEFAULT_COLORS.map(color => `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`).join("")}
+                        </div>
+                        <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
+                        <input class="hex-color-input" type="text" inputmode="text" maxlength="7" placeholder="#FF5733" aria-label="Hex-Farbcode">
+                        <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
+                            <option value="p">Normal</option><option value="h3">Überschrift</option><option value="blockquote">Zitat</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="quickNote-${index}" class="quick-note-editor rich-editor" contenteditable="true" data-editor-type="quick-note" data-editor-index="${index}" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben...">${toEditorHtml(note.text)}</div>
+            <div class="item-actions">
+                <button type="button" class="quick-note-expand-btn" aria-label="Notiz vollständig anzeigen" title="Notiz vollständig anzeigen" onclick="openQuickNoteModal(${index})">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
+                <button class="btn-icon-text" onclick="openQuickNoteGroupMoveModal(${index})">Sammlung</button>
+                <button class="btn-icon-text" onclick="openMoveModal('quickNotes', ${index})">Bubble verschieben</button>
+                <button class="btn-icon-text" style="color:var(--danger-color)" onclick="askDelete('quickNotes', ${index})">Löschen</button>
+            </div>
+        </div>`;
+}
+
+function renderQuickNotes(content) {
+    const groups = content.quickNoteGroups || [];
+    const notes = content.quickNotes || [];
+    const ungroupedNotes = notes
+        .map((note, index) => ({ note, index }))
+        .filter(({ note }) => !groups.some(group => String(group.id) === String(note.groupId)));
+    const ungroupedMarkup = ungroupedNotes.length
+        ? `<div class="quick-note-ungrouped">${ungroupedNotes.map(({ note, index }) => renderQuickNoteCard(note, index)).join("")}</div>`
+        : "";
+    const groupsMarkup = groups.map((group, groupIndex) => {
+        const groupNotes = notes
+            .map((note, index) => ({ note, index }))
+            .filter(({ note }) => String(note.groupId) === String(group.id));
+        const isOpen = group.isOpen !== false;
+        return `
+            <section class="quick-note-group">
+                <div class="quick-note-group-header">
+                    <input class="quick-note-group-title" type="text" value="${escapeHtml(group.title || "")}" aria-label="Sammlungsname" onchange="updateQuickNoteGroupTitle(${groupIndex}, this.value)">
+                    <div class="quick-note-group-actions">
+                        <button type="button" class="btn-icon-text" onclick="toggleQuickNoteGroup(${groupIndex}, ${!isOpen})">${isOpen ? "Ausblenden 🙈" : "Alle anzeigen 👁️"}</button>
+                        <button type="button" class="btn-icon-text quick-note-group-delete" aria-label="Sammlung löschen" onclick="askDeleteQuickNoteGroup(${groupIndex})">&times;</button>
+                    </div>
+                </div>
+                ${isOpen ? `<div class="quick-note-group-notes">${groupNotes.map(({ note, index }) => renderQuickNoteCard(note, index)).join("") || '<div class="quick-note-group-empty">Noch keine Notizen in dieser Sammlung.</div>'}</div>` : ""}
+            </section>`;
+    }).join("");
+    document.getElementById("quickNotesList").innerHTML = `${ungroupedMarkup}${groupsMarkup}`;
+}
 
 function renderContent(id) {
     const bubble = nodesData.get(id);
@@ -350,34 +430,17 @@ function renderContent(id) {
         updateDoc(doc(db, "bubbles", id), { content: content });
     }
 
-    document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
-        <div class="item-card">
-            <div class="item-title-row">
-                <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
-                <div class="format-toolbar header-format-toolbar" data-toolbar-for="quickNote-${i}" aria-label="Textformatierung">
-                <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
-                <div class="format-tools">
-                    <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
-                    <div class="color-swatches" aria-label="Standardfarben">
-                        ${DEFAULT_COLORS.map(color => `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`).join("")}
-                    </div>
-                    <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
-                    <input class="hex-color-input" type="text" inputmode="text" maxlength="7" placeholder="#FF5733" aria-label="Hex-Farbcode">
-                    <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
-                        <option value="p">Normal</option><option value="h3">Überschrift</option><option value="blockquote">Zitat</option>
-                    </select>
-                </div>
-                </div>
-            </div>
-            <div id="quickNote-${i}" class="quick-note-editor rich-editor" contenteditable="true" data-editor-type="quick-note" data-editor-index="${i}" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben...">${toEditorHtml(n.text)}</div>
-            <div class="item-actions">
-                <button type="button" class="quick-note-expand-btn" aria-label="Notiz vollständig anzeigen" aria-expanded="false" title="Notiz vollständig anzeigen" onclick="toggleQuickNoteExpansion(${i}, this)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-                </button>
-                <button class="btn-icon-text" onclick="openMoveModal('quickNotes', ${i})">Verschieben</button>
-                <button class="btn-icon-text" style="color:var(--danger-color)" onclick="askDelete('quickNotes', ${i})">Löschen</button>
-            </div>
-        </div>`).join("");
+    renderQuickNotes(content);
+    if (activeQuickNoteModalIndex !== null && document.getElementById("quickNoteModal").classList.contains("active")) {
+        const activeNote = content.quickNotes?.[activeQuickNoteModalIndex];
+        const modalEditor = document.getElementById("quickNoteModalEditor");
+        const modalToolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="quickNoteModalEditor"]');
+        const modalHasFocus = modalEditor === document.activeElement || modalToolbar.contains(document.activeElement);
+        if (activeNote && editingQuickNoteIndex === null && !modalHasFocus) {
+            document.getElementById("quickNoteModalTitle").value = activeNote.title || "";
+            modalEditor.innerHTML = toEditorHtml(activeNote.text);
+        }
+    }
 
     document.getElementById("notebooksList").innerHTML = (content.notebooks || []).map((nb, i) => `
         <div class="notebook-cover">
@@ -488,12 +551,11 @@ function rememberColor(color) {
 }
 
 function renderRecentColors() {
-    const defaultColors = document.querySelector(".color-format-view .color-swatches");
-    if (defaultColors) {
+    document.querySelectorAll(".color-format-view .color-swatches").forEach(defaultColors => {
         defaultColors.innerHTML = DEFAULT_COLORS.map(color =>
             `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Standardfarbe ${color}"></button>`
         ).join("");
-    }
+    });
     document.querySelectorAll(".custom-colors").forEach(container => {
         container.innerHTML = getRecentColors().map(color =>
             `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`
@@ -522,13 +584,15 @@ function updateSelectedPaletteColor() {
 function setStagedFormatColor(color, clearManualInput = true) {
     if (!/^#[0-9A-F]{6}$/i.test(color)) return false;
     stagedFormatColor = color.toUpperCase();
-    document.getElementById("notebookColorPicker").value = stagedFormatColor;
-    document.getElementById("currentColorHex").value = stagedFormatColor;
+    document.querySelectorAll(".format-toolbar .hsl-color-picker").forEach(input => { input.value = stagedFormatColor; });
+    document.querySelectorAll(".format-toolbar .current-color-hex").forEach(input => { input.value = stagedFormatColor; });
     if (clearManualInput) {
-        document.getElementById("manualColorHex").value = "";
-        document.getElementById("manualColorHex").removeAttribute("aria-invalid");
+        document.querySelectorAll(".format-toolbar .manual-color-hex").forEach(input => {
+            input.value = "";
+            input.removeAttribute("aria-invalid");
+        });
     }
-    document.querySelector(".confirm-color-btn").disabled = false;
+    document.querySelectorAll(".format-toolbar .confirm-color-btn").forEach(button => { button.disabled = false; });
     updateSelectedPaletteColor();
     return true;
 }
@@ -565,8 +629,65 @@ document.addEventListener("focusout", (event) => {
 document.getElementById("addQuickNoteBtn").addEventListener("click", async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.quickNotes) b.content.quickNotes = [];
-    b.content.quickNotes.push({ title: "Neue Notiz", text: "" });
+    b.content.quickNotes.push({ title: "Neue Notiz", text: "", groupId: null });
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+});
+
+document.getElementById("addQuickNoteGroupBtn").addEventListener("click", async () => {
+    const b = nodesData.get(activeBubbleId);
+    if (!b.content.quickNoteGroups) b.content.quickNoteGroups = [];
+    b.content.quickNoteGroups.push({ id: String(Date.now()), title: "Neue Sammlung", isOpen: true });
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+});
+
+window.updateQuickNoteGroupTitle = async (groupIndex, title) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.quickNoteGroups[groupIndex].title = title;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.toggleQuickNoteGroup = async (groupIndex, isOpen) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.quickNoteGroups[groupIndex].isOpen = isOpen;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.askDeleteQuickNoteGroup = (groupIndex) => {
+    currentAction = { action: "deleteQuickNoteGroup", groupIndex };
+    document.getElementById("confirmModal").classList.add("active");
+};
+
+window.openQuickNoteGroupMoveModal = (noteIndex) => {
+    const b = nodesData.get(activeBubbleId);
+    const note = b.content.quickNotes[noteIndex];
+    movingQuickNoteIndex = noteIndex;
+    document.getElementById("quickNoteGroupSelect").innerHTML = [
+        `<option value="">Ohne Sammlung</option>`,
+        ...(b.content.quickNoteGroups || []).map(group =>
+            `<option value="${escapeHtml(group.id)}" ${String(note.groupId) === String(group.id) ? "selected" : ""}>${escapeHtml(group.title || "Unbenannte Sammlung")}</option>`
+        )
+    ].join("");
+    document.getElementById("quickNoteGroupMoveModal").classList.add("active");
+};
+
+document.getElementById("cancelQuickNoteGroupMoveBtn").addEventListener("click", () => {
+    movingQuickNoteIndex = null;
+    document.getElementById("quickNoteGroupMoveModal").classList.remove("active");
+});
+
+document.getElementById("confirmQuickNoteGroupMoveBtn").addEventListener("click", async () => {
+    if (movingQuickNoteIndex === null) return;
+    const b = nodesData.get(activeBubbleId);
+    const targetGroupId = document.getElementById("quickNoteGroupSelect").value;
+    b.content.quickNotes[movingQuickNoteIndex].groupId = targetGroupId || null;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    movingQuickNoteIndex = null;
+    document.getElementById("quickNoteGroupMoveModal").classList.remove("active");
+});
+
+document.getElementById("quickNoteModalTitle").addEventListener("change", async (event) => {
+    if (activeBubbleId === null || activeQuickNoteModalIndex === null) return;
+    await window.updateData("quickNotes", activeQuickNoteModalIndex, "title", event.target.value);
 });
 
 document.getElementById("addNotebookBtn").addEventListener("click", async () => {
@@ -793,6 +914,12 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    const quickNoteModal = document.getElementById("quickNoteModal");
+    if (quickNoteModal.classList.contains("active")) {
+        quickNoteModal.classList.remove("active");
+        activeQuickNoteModalIndex = null;
+        return;
+    }
     const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="notebookPageInput"].open');
     if (!toolbar) return;
     toolbar.classList.remove("open");
@@ -833,7 +960,7 @@ document.addEventListener("input", (e) => {
     if (manualHex) {
         const validColor = /^#[0-9A-F]{6}$/i.test(manualHex.value.trim());
         manualHex.toggleAttribute("aria-invalid", manualHex.value.length > 0 && !validColor);
-        document.querySelector(".confirm-color-btn").disabled = manualHex.value.length > 0 && !validColor;
+        manualHex.closest(".format-toolbar").querySelector(".confirm-color-btn").disabled = manualHex.value.length > 0 && !validColor;
         if (validColor) setStagedFormatColor(manualHex.value.trim(), false);
         return;
     }
@@ -968,6 +1095,13 @@ document.getElementById("actionConfirmBtn").addEventListener("click", async () =
     } else if (currentAction.action === 'deleteGroupAudio') {
         const b = nodesData.get(activeBubbleId);
         b.content.audioGroups[currentAction.gIdx].audios.splice(currentAction.aIdx, 1);
+        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    } else if (currentAction.action === "deleteQuickNoteGroup") {
+        const b = nodesData.get(activeBubbleId);
+        const [deletedGroup] = b.content.quickNoteGroups.splice(currentAction.groupIndex, 1);
+        (b.content.quickNotes || []).forEach(note => {
+            if (String(note.groupId) === String(deletedGroup.id)) note.groupId = null;
+        });
         await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
     } else if (currentAction.action === 'deleteItem') {
         const b = nodesData.get(activeBubbleId);
