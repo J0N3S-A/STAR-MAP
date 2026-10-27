@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, getDocs, setDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -84,6 +84,12 @@ let isPageStarred = {}; // لتتبع الصفحات المميزة
 let editingQuickNoteIndex = null;
 let activeQuickNoteModalIndex = null;
 let movingQuickNoteIndex = null;
+const NOTEBOOK_SAVE_DELAY_MS = 700;
+let notebookSaveTimer = null;
+let notebookSaveQueue = Promise.resolve();
+let notebookSaveDirty = false;
+let notebookSaveRevision = 0;
+let notebookStorageReady = false;
 const RECENT_COLORS_KEY = "star-map-recent-colors";
 const DEFAULT_COLORS = ["#fe019a", "#000000", "#8000f8", "#0400f8"];
 let stagedFormatColor = DEFAULT_COLORS[0];
@@ -131,6 +137,14 @@ onSnapshot(collection(db, "bubbles"), (snapshot) => {
     snapshot.docChanges().forEach((change) => {
         const d = change.doc.data();
         if (change.type === "added" || change.type === "modified") {
+            const existing = nodesData.get(change.doc.id);
+            if (existing?.content?.notebooks && d.content?.notebooks) {
+                const cachedNotebooks = new Map(existing.content.notebooks.filter(nb => nb.id).map(nb => [nb.id, nb]));
+                d.content.notebooks = d.content.notebooks.map(notebook => {
+                    const cached = notebook.id && cachedNotebooks.get(notebook.id);
+                    return cached?.pages ? { ...notebook, pages: cached.pages, pageTitles: cached.pageTitles } : notebook;
+                });
+            }
             nodesData.update({ id: change.doc.id, label: d.title, x: d.x, y: d.y, content: d.content });
             if(activeBubbleId === change.doc.id && editingQuickNoteIndex === null) renderContent(activeBubbleId);
         }
@@ -239,7 +253,7 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
         const b = nodesData.get(activeBubbleId);
         if (!b.content.photos) b.content.photos = [];
         b.content.photos.push({ id: Date.now(), url });
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        await saveBubbleContent(activeBubbleId, b.content);
     }
 });
 
@@ -249,19 +263,19 @@ window.addAudioGroup = async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.audioGroups) b.content.audioGroups = [];
     b.content.audioGroups.push({ id: Date.now(), title: "Neue Gruppe", description: "", isOpen: true, audios: [] });
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 window.toggleAudioGroup = async (gIdx, isOpen) => {
     const b = nodesData.get(activeBubbleId);
     b.content.audioGroups[gIdx].isOpen = isOpen;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 window.updateAudioGroupField = async (gIdx, field, value) => {
     const b = nodesData.get(activeBubbleId);
     b.content.audioGroups[gIdx][field] = value;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 window.askDeleteAudioGroup = (gIdx) => {
@@ -294,7 +308,7 @@ window.startGroupRecording = async (gIdx) => {
                     const b = nodesData.get(activeBubbleId);
                     if (!b.content.audioGroups[gIdx].audios) b.content.audioGroups[gIdx].audios = [];
                     b.content.audioGroups[gIdx].audios.push({ id: Date.now(), title: "Sprachaufnahme", url });
-                    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+                    await saveBubbleContent(activeBubbleId, b.content);
                 }
             };
         } catch (err) {
@@ -307,7 +321,7 @@ window.startGroupRecording = async (gIdx) => {
 window.updateGroupAudioTitle = async (gIdx, aIdx, title) => {
     const b = nodesData.get(activeBubbleId);
     b.content.audioGroups[gIdx].audios[aIdx].title = title;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 window.askDeleteGroupAudio = (gIdx, aIdx) => {
@@ -427,7 +441,7 @@ function renderContent(id) {
             id: Date.now(), title: "Einzelne Aufnahmen", description: "Frühere Sprachaufnahmen", isOpen: true, audios: [...content.audios]
         });
         delete content.audios;
-        updateDoc(doc(db, "bubbles", id), { content: content });
+        saveBubbleContent(id, content);
     }
 
     renderQuickNotes(content);
@@ -530,7 +544,7 @@ function toEditorHtml(value) {
 window.updateData = async (type, index, field, value) => {
     const b = nodesData.get(activeBubbleId);
     b.content[type][index][field] = value;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 function getRecentColors() {
@@ -630,26 +644,26 @@ document.getElementById("addQuickNoteBtn").addEventListener("click", async () =>
     const b = nodesData.get(activeBubbleId);
     if (!b.content.quickNotes) b.content.quickNotes = [];
     b.content.quickNotes.push({ title: "Neue Notiz", text: "", groupId: null });
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 });
 
 document.getElementById("addQuickNoteGroupBtn").addEventListener("click", async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.quickNoteGroups) b.content.quickNoteGroups = [];
     b.content.quickNoteGroups.push({ id: String(Date.now()), title: "Neue Sammlung", isOpen: true });
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 });
 
 window.updateQuickNoteGroupTitle = async (groupIndex, title) => {
     const b = nodesData.get(activeBubbleId);
     b.content.quickNoteGroups[groupIndex].title = title;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 window.toggleQuickNoteGroup = async (groupIndex, isOpen) => {
     const b = nodesData.get(activeBubbleId);
     b.content.quickNoteGroups[groupIndex].isOpen = isOpen;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
 window.askDeleteQuickNoteGroup = (groupIndex) => {
@@ -680,7 +694,7 @@ document.getElementById("confirmQuickNoteGroupMoveBtn").addEventListener("click"
     const b = nodesData.get(activeBubbleId);
     const targetGroupId = document.getElementById("quickNoteGroupSelect").value;
     b.content.quickNotes[movingQuickNoteIndex].groupId = targetGroupId || null;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
     movingQuickNoteIndex = null;
     document.getElementById("quickNoteGroupMoveModal").classList.remove("active");
 });
@@ -693,8 +707,10 @@ document.getElementById("quickNoteModalTitle").addEventListener("change", async 
 document.getElementById("addNotebookBtn").addEventListener("click", async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.notebooks) b.content.notebooks = [];
-    b.content.notebooks.push({ title: "Neues Notizbuch", pages: [""], pageTitles: [""] });
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    const notebook = { title: "Neues Notizbuch", pages: [""], pageTitles: [""] };
+    ensureNotebookPageTitles(notebook);
+    b.content.notebooks.push(notebook);
+    await saveBubbleContent(activeBubbleId, b.content);
 });
 
 function ensureNotebookPageTitles(notebook) {
@@ -703,20 +719,199 @@ function ensureNotebookPageTitles(notebook) {
         if (typeof notebook.pageTitles[index] !== "string") notebook.pageTitles[index] = "";
     });
     notebook.pageTitles.length = notebook.pages.length;
+    if (!notebook.id) notebook.id = createNotebookId();
+    if (!Array.isArray(notebook.pageIds)) notebook.pageIds = [];
+    notebook.pageIds = notebook.pages.map((_, index) => notebook.pageIds[index] || createNotebookId());
 }
 
-window.openNotebook = (index) => {
+function createNotebookId() {
+    return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function notebookPageRef(bubbleId, notebook, pageIndex) {
+    return doc(db, "bubbles", bubbleId, "notebookPages", `${notebook.id}_${notebook.pageIds[pageIndex]}`);
+}
+
+async function removeNotebookPageDocuments(bubbleId, notebook) {
+    if (!notebook?.id) return;
+    const snapshot = await getDocs(collection(db, "bubbles", bubbleId, "notebookPages"));
+    await Promise.all(snapshot.docs
+        .filter(page => page.id.startsWith(`${notebook.id}_`))
+        .map(page => deleteDoc(page.ref)));
+}
+
+async function copyNotebookPageDocuments(sourceBubbleId, targetBubbleId, notebook) {
+    if (!notebook?.id) return;
+    const snapshot = await getDocs(collection(db, "bubbles", sourceBubbleId, "notebookPages"));
+    const pages = snapshot.docs.filter(page => page.id.startsWith(`${notebook.id}_`));
+    await Promise.all(pages.map(page => setDoc(
+        doc(db, "bubbles", targetBubbleId, "notebookPages", page.id),
+        page.data()
+    )));
+}
+
+function serializeBubbleContent(content) {
+    return {
+        ...content,
+        notebooks: (content.notebooks || []).map(notebook => {
+            if (notebook.storageVersion !== 1) return notebook;
+            const { pages, ...metadata } = notebook;
+            return metadata;
+        })
+    };
+}
+
+async function saveBubbleContent(bubbleId, content) {
+    const storedContent = serializeBubbleContent(content);
+    await updateDoc(doc(db, "bubbles", bubbleId), { content: storedContent });
+}
+
+function setNotebookSaveStatus(state, message) {
+    const status = document.getElementById("notebookSaveStatus");
+    if (!status) return;
+    status.dataset.state = state;
+    status.textContent = message;
+}
+
+async function loadNotebookPages(bubbleId, notebook) {
+    if (!Array.isArray(notebook.pages)) {
+        const pageCount = notebook.storageVersion === 1 && Array.isArray(notebook.pageIds)
+            ? Math.max(notebook.pageIds.length, 1)
+            : 1;
+        notebook.pages = Array.from({ length: pageCount }, (_, index) => index === 0 ? notebook.text || "" : "");
+    }
+    delete notebook.text;
+    ensureNotebookPageTitles(notebook);
+
+    if (notebook.storageVersion !== 1) {
+        for (let index = 0; index < notebook.pages.length; index++) {
+            await setDoc(notebookPageRef(bubbleId, notebook, index), {
+                content: notebook.pages[index] || "",
+                title: notebook.pageTitles[index] || ""
+            });
+        }
+        notebook.storageVersion = 1;
+        const bubble = nodesData.get(bubbleId);
+        const currentNotebook = bubble.content.notebooks.find(candidate => candidate.id === notebook.id);
+        if (!currentNotebook) throw new Error("Notizbuch wurde während der Migration geändert.");
+        Object.assign(currentNotebook, {
+            id: notebook.id,
+            pageIds: notebook.pageIds,
+            pageTitles: notebook.pageTitles,
+            pages: notebook.pages,
+            storageVersion: 1
+        });
+        await saveBubbleContent(bubbleId, bubble.content);
+    }
+
+    const pageSnapshots = await Promise.all(notebook.pages.map((_, index) => getDoc(notebookPageRef(bubbleId, notebook, index))));
+    notebook.pages = pageSnapshots.map((page, index) => {
+        if (!page.exists()) return notebook.pages[index] || "";
+        const data = page.data();
+        if (typeof data.title === "string") notebook.pageTitles[index] = data.title;
+        return typeof data.content === "string" ? data.content : "";
+    });
+}
+
+function scheduleNotebookSave() {
+    notebookSaveDirty = true;
+    notebookSaveRevision++;
+    setNotebookSaveStatus("saving", "Wird gespeichert…");
+    clearTimeout(notebookSaveTimer);
+    notebookSaveTimer = setTimeout(() => {
+        flushNotebookSave().catch(error => {
+            console.error("Notizbuchseite konnte nicht gespeichert werden:", error);
+            setNotebookSaveStatus("error", "Speichern fehlgeschlagen");
+        });
+    }, NOTEBOOK_SAVE_DELAY_MS);
+}
+
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden && notebookStorageReady && notebookSaveDirty) {
+        flushNotebookSave().catch(error => {
+            console.error("Notizbuchseite konnte beim Wechseln der Ansicht nicht gespeichert werden:", error);
+            setNotebookSaveStatus("error", "Speichern fehlgeschlagen");
+        });
+    }
+});
+
+async function flushNotebookSave() {
+    clearTimeout(notebookSaveTimer);
+    if (!notebookSaveDirty) {
+        await notebookSaveQueue;
+        return;
+    }
+
+    const bubbleId = activeBubbleId;
+    const notebookIndex = currentNotebookIndex;
+    const pageIndex = currentPageIndex;
+    const bubble = nodesData.get(bubbleId);
+    const notebook = bubble?.content?.notebooks?.[notebookIndex];
+    if (!notebook || !document.getElementById("notebookModal").classList.contains("active")) return;
+
+    ensureNotebookPageTitles(notebook);
+    const editor = document.getElementById("notebookPageInput");
+    const titleInput = document.getElementById("notebookPageTitleInput");
+    const content = editor.innerHTML;
+    const title = titleInput.value;
+    const revision = notebookSaveRevision;
+    notebook.pages[pageIndex] = content;
+    notebook.pageTitles[pageIndex] = title;
+
+    const savePromise = notebookSaveQueue.then(async () => {
+        await setDoc(notebookPageRef(bubbleId, notebook, pageIndex), { content, title });
+    });
+    notebookSaveQueue = savePromise.catch(() => {});
+    await savePromise;
+    if (revision === notebookSaveRevision) {
+        notebookSaveDirty = false;
+        setNotebookSaveStatus("saved", "Gespeichert");
+    }
+}
+
+async function tryFlushNotebookSave() {
+    if (!notebookStorageReady) return !notebookSaveDirty;
+    try {
+        do {
+            await flushNotebookSave();
+            await notebookSaveQueue;
+        } while (notebookSaveDirty);
+        return true;
+    } catch (error) {
+        console.error("Notizbuchseite konnte nicht gespeichert werden:", error);
+        setNotebookSaveStatus("error", "Speichern fehlgeschlagen");
+        return false;
+    }
+}
+
+window.openNotebook = async (index) => {
     currentNotebookIndex = index; currentPageIndex = 0;
-    const b = nodesData.get(activeBubbleId);
-    const nb = b.content.notebooks[index];
-    if (!nb.pages) { nb.pages = [nb.text || ""]; delete nb.text; }
-    ensureNotebookPageTitles(nb);
-    document.getElementById("activeNotebookTitle").innerText = nb.title;
+    clearTimeout(notebookSaveTimer);
+    notebookSaveDirty = false;
+    notebookSaveRevision++;
+    notebookStorageReady = false;
+    setNotebookSaveStatus("saved", "Gespeichert");
+    const bubbleId = activeBubbleId;
+    const notebook = nodesData.get(bubbleId).content.notebooks[index];
+    try {
+        await loadNotebookPages(bubbleId, notebook);
+        notebookStorageReady = true;
+        setNotebookSaveStatus("saved", "Gespeichert");
+    } catch (error) {
+        console.error("Notizbuchseiten konnten nicht geladen oder migriert werden:", error);
+        setNotebookSaveStatus("error", "Speichern fehlgeschlagen");
+    }
+    if (activeBubbleId !== bubbleId || currentNotebookIndex !== index) return;
+    const currentNotebook = nodesData.get(bubbleId).content.notebooks[index];
+    if (currentNotebook.id !== notebook.id) return;
+    currentNotebook.pages = notebook.pages;
+    currentNotebook.pageTitles = notebook.pageTitles;
+    document.getElementById("activeNotebookTitle").innerText = currentNotebook.title;
     document.getElementById("notebookModal").classList.add("active");
     loadStarredPages();
     updateStarButtonUI();
     renderNotebookPage();
-};
+}
 
 function renderNotebookPage() {
     const nb = nodesData.get(activeBubbleId).content.notebooks[currentNotebookIndex];
@@ -725,8 +920,13 @@ function renderNotebookPage() {
     const textContent = nb.pages[currentPageIndex] || "";
     document.getElementById("notebookPageInput").innerHTML = toEditorHtml(textContent);
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
-    document.getElementById("prevPageBtn").disabled = currentPageIndex === 0;
-    document.getElementById("nextPageBtn").disabled = false;
+    document.getElementById("notebookPageInput").contentEditable = String(notebookStorageReady);
+    document.getElementById("notebookPageTitleInput").disabled = !notebookStorageReady;
+    document.getElementById("prevPageBtn").disabled = !notebookStorageReady || currentPageIndex === 0;
+    document.getElementById("nextPageBtn").disabled = !notebookStorageReady;
+    document.getElementById("starBtn").disabled = !notebookStorageReady;
+    document.getElementById("pagesListBtn").disabled = !notebookStorageReady;
+    document.getElementById("reorderPageBtn").disabled = !notebookStorageReady;
     updateStarButtonUI(); // تحديث حالة النجمة عند تغيير الصفحة
 }
 // دوال التحكم بالنجمة والصفحات
@@ -766,10 +966,11 @@ window.togglePageStar = async () => {
     }
     
     updateStarButtonUI();
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
 };
 
-window.showPagesList = () => {
+window.showPagesList = async () => {
+    if (!await tryFlushNotebookSave()) return;
     const b = nodesData.get(activeBubbleId);
     const nb = b.content.notebooks[currentNotebookIndex];
     const container = document.getElementById("pagesListContainer");
@@ -791,13 +992,16 @@ window.showPagesList = () => {
     document.getElementById("pagesListModal").classList.add("active");
 };
 
-window.goToPage = (pageIndex) => {
+window.goToPage = async (pageIndex) => {
+    if (!await tryFlushNotebookSave()) return;
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= nodesData.get(activeBubbleId).content.notebooks[currentNotebookIndex].pages.length) return;
     currentPageIndex = pageIndex;
     renderNotebookPage();
     document.getElementById("pagesListModal").classList.remove("active");
 };
 
 document.getElementById("reorderPageBtn").addEventListener("click", async () => {
+    if (!await tryFlushNotebookSave()) return;
     const b = nodesData.get(activeBubbleId);
     const nb = b.content.notebooks[currentNotebookIndex];
     ensureNotebookPageTitles(nb);
@@ -813,18 +1017,20 @@ document.getElementById("reorderPageBtn").addEventListener("click", async () => 
     const entries = nb.pages.map((text, index) => ({
         text,
         title: nb.pageTitles[index],
+        pageId: nb.pageIds[index],
         starred: Array.isArray(nb.starred) && nb.starred.includes(index)
     }));
     const [movedEntry] = entries.splice(currentPageIndex, 1);
     entries.splice(targetIndex, 0, movedEntry);
     nb.pages = entries.map(entry => entry.text);
     nb.pageTitles = entries.map(entry => entry.title);
+    nb.pageIds = entries.map(entry => entry.pageId);
     nb.starred = entries.reduce((starred, entry, index) => {
         if (entry.starred) starred.push(index);
         return starred;
     }, []);
     currentPageIndex = targetIndex;
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    await saveBubbleContent(activeBubbleId, b.content);
     await loadStarredPages();
     renderNotebookPage();
 });
@@ -990,13 +1196,13 @@ function restoreEditorSelection(editor) {
 }
 
 document.addEventListener("input", async (e) => {
-    if (e.target.id === "notebookPageTitleInput" && activeBubbleId !== null && currentNotebookIndex !== null) {
+    if (e.target.id === "notebookPageTitleInput" && notebookStorageReady && activeBubbleId !== null && currentNotebookIndex !== null) {
         const b = nodesData.get(activeBubbleId);
         if (!b) return;
         const notebook = b.content.notebooks[currentNotebookIndex];
         ensureNotebookPageTitles(notebook);
         notebook.pageTitles[currentPageIndex] = e.target.value;
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        scheduleNotebookSave();
         return;
     }
 
@@ -1004,17 +1210,20 @@ document.addEventListener("input", async (e) => {
     if (!editor) return;
     if (editor.dataset.editorType === "quick-note") {
         await updateData("quickNotes", Number(editor.dataset.editorIndex), "text", editor.innerHTML);
-    } else if (editor.dataset.editorType === "notebook" && activeBubbleId !== null && currentNotebookIndex !== null) {
+    } else if (editor.dataset.editorType === "notebook" && notebookStorageReady && activeBubbleId !== null && currentNotebookIndex !== null) {
         const b = nodesData.get(activeBubbleId);
         if (!b) return;
         b.content.notebooks[currentNotebookIndex].pages[currentPageIndex] = editor.innerHTML;
         document.getElementById("nextPageBtn").disabled = false;
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        scheduleNotebookSave();
     }
 });
 
-document.getElementById("prevPageBtn").addEventListener("click", () => {
-    if (currentPageIndex > 0) { currentPageIndex--; renderNotebookPage(); }
+document.getElementById("prevPageBtn").addEventListener("click", async () => {
+    if (currentPageIndex > 0 && await tryFlushNotebookSave()) {
+        currentPageIndex--;
+        renderNotebookPage();
+    }
 });
 
 const btn = document.getElementById("nextPageBtn");
@@ -1025,6 +1234,7 @@ btn.addEventListener("pointerdown", () => {
     longPress = false;
     pressTimer = setTimeout(async () => {
         longPress = true;
+        if (!await tryFlushNotebookSave()) return;
         const b = nodesData.get(activeBubbleId);
         const nb = b.content.notebooks[currentNotebookIndex];
         const lastPageIndex = nb.pages.length - 1;
@@ -1035,8 +1245,18 @@ btn.addEventListener("pointerdown", () => {
             ensureNotebookPageTitles(nb);
             nb.pages.push("");
             nb.pageTitles.push("");
+            nb.pageIds.push(createNotebookId());
+            try {
+                await saveBubbleContent(activeBubbleId, b.content);
+            } catch (error) {
+                nb.pages.pop();
+                nb.pageTitles.pop();
+                nb.pageIds.pop();
+                console.error("Neue Notizbuchseite konnte nicht gespeichert werden:", error);
+                setNotebookSaveStatus("error", "Speichern fehlgeschlagen");
+                return;
+            }
             currentPageIndex = nb.pages.length - 1;
-            await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
         }
 
         renderNotebookPage();
@@ -1046,16 +1266,28 @@ btn.addEventListener("pointerdown", () => {
 btn.addEventListener("pointerup", async () => {
     clearTimeout(pressTimer);
     if (!longPress) {
+        if (!await tryFlushNotebookSave()) return;
         const b = nodesData.get(activeBubbleId);
         const nb = b.content.notebooks[currentNotebookIndex];
         if (nb.pages[currentPageIndex].trim() !== "") {
-            currentPageIndex++;
-            if (currentPageIndex >= nb.pages.length) {
+            const nextPageIndex = currentPageIndex + 1;
+            if (nextPageIndex >= nb.pages.length) {
                 ensureNotebookPageTitles(nb);
                 nb.pages.push("");
                 nb.pageTitles.push("");
+                nb.pageIds.push(createNotebookId());
+                try {
+                    await saveBubbleContent(activeBubbleId, b.content);
+                } catch (error) {
+                    nb.pages.pop();
+                    nb.pageTitles.pop();
+                    nb.pageIds.pop();
+                    console.error("Neue Notizbuchseite konnte nicht gespeichert werden:", error);
+                    setNotebookSaveStatus("error", "Speichern fehlgeschlagen");
+                    return;
+                }
             }
-            await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+            currentPageIndex = nextPageIndex;
             renderNotebookPage();
         }
     }
@@ -1063,7 +1295,9 @@ btn.addEventListener("pointerup", async () => {
 });
 
 btn.addEventListener("pointercancel", () => clearTimeout(pressTimer));
-document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
+document.getElementById("closeNotebookModal").addEventListener("click", async () => {
+    if (await tryFlushNotebookSave()) document.getElementById("notebookModal").classList.remove("active");
+});
 
 document.getElementById("starBtn").addEventListener("click", window.togglePageStar);
 document.getElementById("pagesListBtn").addEventListener("click", window.showPagesList);
@@ -1087,26 +1321,39 @@ document.getElementById("actionConfirmBtn").addEventListener("click", async () =
     if (!currentAction) return;
     if (currentAction.action === 'deleteBubble') {
         await deleteDoc(doc(db, "bubbles", activeBubbleId));
+        try {
+            const pageDocs = await getDocs(collection(db, "bubbles", activeBubbleId, "notebookPages"));
+            await Promise.all(pageDocs.docs.map(page => deleteDoc(page.ref)));
+        } catch (error) {
+            console.error("Notizbuchseiten des gelöschten Gedankens konnten nicht bereinigt werden:", error);
+        }
         document.getElementById("contentModal").classList.remove("active");
     } else if (currentAction.action === 'deleteAudioGroup') {
         const b = nodesData.get(activeBubbleId);
         b.content.audioGroups.splice(currentAction.gIdx, 1);
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        await saveBubbleContent(activeBubbleId, b.content);
     } else if (currentAction.action === 'deleteGroupAudio') {
         const b = nodesData.get(activeBubbleId);
         b.content.audioGroups[currentAction.gIdx].audios.splice(currentAction.aIdx, 1);
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        await saveBubbleContent(activeBubbleId, b.content);
     } else if (currentAction.action === "deleteQuickNoteGroup") {
         const b = nodesData.get(activeBubbleId);
         const [deletedGroup] = b.content.quickNoteGroups.splice(currentAction.groupIndex, 1);
         (b.content.quickNotes || []).forEach(note => {
             if (String(note.groupId) === String(deletedGroup.id)) note.groupId = null;
         });
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        await saveBubbleContent(activeBubbleId, b.content);
     } else if (currentAction.action === 'deleteItem') {
         const b = nodesData.get(activeBubbleId);
-        b.content[currentAction.type].splice(currentAction.index, 1);
-        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+        const [deletedItem] = b.content[currentAction.type].splice(currentAction.index, 1);
+        await saveBubbleContent(activeBubbleId, b.content);
+        if (currentAction.type === "notebooks") {
+            try {
+                await removeNotebookPageDocuments(activeBubbleId, deletedItem);
+            } catch (error) {
+                console.error("Gelöschte Notizbuchseiten konnten nicht bereinigt werden:", error);
+            }
+        }
     }
     currentAction = null;
     document.getElementById("confirmModal").classList.remove("active");
@@ -1121,12 +1368,31 @@ document.getElementById("cancelMoveBtn").addEventListener("click", () => documen
 document.getElementById("actionMoveBtn").addEventListener("click", async () => {
     const targetId = document.getElementById("targetBubbleSelect").value;
     if(!targetId) return;
+    if (!currentAction) return;
     const sourceB = nodesData.get(activeBubbleId);
     const targetB = nodesData.get(targetId);
-    const item = sourceB.content[currentAction.type].splice(currentAction.index, 1)[0];
+    const item = sourceB.content[currentAction.type][currentAction.index];
+    if (!item) return;
     if (!targetB.content[currentAction.type]) targetB.content[currentAction.type] = [];
+    if (currentAction.type === "notebooks") await copyNotebookPageDocuments(activeBubbleId, targetId, item);
     targetB.content[currentAction.type].push(item);
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: sourceB.content });
-    await updateDoc(doc(db, "bubbles", targetId), { content: targetB.content });
+    sourceB.content[currentAction.type].splice(currentAction.index, 1);
+    try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, "bubbles", targetId), { content: serializeBubbleContent(targetB.content) });
+        batch.update(doc(db, "bubbles", activeBubbleId), { content: serializeBubbleContent(sourceB.content) });
+        await batch.commit();
+    } catch (error) {
+        targetB.content[currentAction.type].pop();
+        sourceB.content[currentAction.type].splice(currentAction.index, 0, item);
+        throw error;
+    }
+    if (currentAction.type === "notebooks") {
+        try {
+            await removeNotebookPageDocuments(activeBubbleId, item);
+        } catch (error) {
+            console.error("Verschobene Notizbuchseiten konnten nicht bereinigt werden:", error);
+        }
+    }
     document.getElementById("moveModal").classList.remove("active");
 });
