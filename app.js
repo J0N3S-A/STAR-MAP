@@ -426,7 +426,10 @@ function renderQuickNotes(content) {
                 ${isOpen ? `<div class="quick-note-group-notes">${groupNotes.map(({ note, index }) => renderQuickNoteCard(note, index)).join("") || '<div class="quick-note-group-empty">Noch keine Notizen in dieser Sammlung.</div>'}</div>` : ""}
             </section>`;
     }).join("");
-    document.getElementById("quickNotesList").innerHTML = `${ungroupedMarkup}${groupsMarkup}`;
+    const notesDivider = groupsMarkup && ungroupedMarkup
+        ? '<hr class="quick-notes-divider">'
+        : "";
+    document.getElementById("quickNotesList").innerHTML = `${groupsMarkup}${notesDivider}${ungroupedMarkup}`;
 }
 
 function renderContent(id) {

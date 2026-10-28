@@ -513,10 +513,18 @@ input:checked + .slider::before { transform: translateX(22px); }
 
 #contentModal #quickNotesTab > .quick-notes-toolbar {
     display: flex;
+    flex-direction: column;
     gap: 12px;
 }
 
-.quick-notes-toolbar .add-item-btn { flex: 1; min-width: 0; }
+.quick-notes-toolbar .add-item-btn { width: 100%; min-width: 0; }
+
+.quick-notes-divider {
+    width: 100%;
+    margin: 14px 0;
+    border: 0;
+    border-top: 1px solid var(--bubble-border);
+}
 
 #contentModal #quickNotesList {
     flex: 1;
