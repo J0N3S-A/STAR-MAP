@@ -976,28 +976,57 @@ window.showPagesList = async () => {
     if (!await tryFlushNotebookSave()) return;
     const b = nodesData.get(activeBubbleId);
     const nb = b.content.notebooks[currentNotebookIndex];
+    ensureNotebookPageTitles(nb);
     const container = document.getElementById("pagesListContainer");
-    
-    container.innerHTML = nb.pages.map((text, idx) => {
-        const preview = text.substring(0, 50) + (text.length > 50 ? "..." : "");
-        const isStarred = isPageStarred[idx];
-        return `
-            <div style="padding: 12px; background: #F2F7F4; border-radius: 10px; cursor: pointer; transition: 0.2s;" onclick="goToPage(${idx})">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600; color: #4A5D54;">Seite ${idx + 1}</span>
-                    ${isStarred ? '⭐' : ''}
-                </div>
-                <div style="font-size: 13px; color: #8A9D93; margin-top: 4px;">${preview || '(Leer)'}</div>
-            </div>
-        `;
-    }).join("");
-    
+
+    container.replaceChildren(...nb.pages.map((content, index) => {
+        const pageItem = document.createElement("button");
+        pageItem.type = "button";
+        pageItem.className = "page-list-item";
+        pageItem.dataset.pageIndex = String(index);
+
+        const pageNumber = document.createElement("span");
+        pageNumber.className = "page-list-item-number";
+        pageNumber.textContent = `Seite ${index + 1}`;
+        pageItem.append(pageNumber);
+
+        if (isPageStarred[index]) {
+            const star = document.createElement("span");
+            star.className = "page-list-item-star";
+            star.textContent = "⭐";
+            pageItem.append(star);
+        }
+
+        const pageTitle = nb.pageTitles[index].trim();
+        if (pageTitle) {
+            const title = document.createElement("span");
+            title.className = "page-list-item-title";
+            title.textContent = pageTitle;
+            pageItem.append(title);
+        }
+
+        const pageDocument = new DOMParser().parseFromString(toEditorHtml(content), "text/html");
+        const preview = document.createElement("span");
+        preview.className = "page-list-item-preview";
+        preview.textContent = pageDocument.body.textContent.trim().replace(/\s+/g, " ") || "(Leer)";
+        pageItem.append(preview);
+
+        return pageItem;
+    }));
+
     document.getElementById("pagesListModal").classList.add("active");
 };
 
+document.getElementById("pagesListContainer").addEventListener("click", async (event) => {
+    const pageItem = event.target.closest(".page-list-item");
+    if (!pageItem || !event.currentTarget.contains(pageItem)) return;
+    await window.goToPage(Number(pageItem.dataset.pageIndex));
+});
+
 window.goToPage = async (pageIndex) => {
     if (!await tryFlushNotebookSave()) return;
-    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= nodesData.get(activeBubbleId).content.notebooks[currentNotebookIndex].pages.length) return;
+    const notebook = nodesData.get(activeBubbleId)?.content?.notebooks?.[currentNotebookIndex];
+    if (!notebook || !Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= notebook.pages.length) return;
     currentPageIndex = pageIndex;
     renderNotebookPage();
     document.getElementById("pagesListModal").classList.remove("active");
