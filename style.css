@@ -203,6 +203,12 @@ input:checked + .slider::before { transform: translateX(22px); }
 }
 .notebook-header-controls .page-btn,
 .notebook-header-controls .close-btn { flex: 0 0 auto; }
+.notebook-header-actions .notebook-bullet-insert-btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 6px 8px;
+    line-height: 1;
+}
 .notebook-title-display {
     width: 100%;
     text-align: center;
