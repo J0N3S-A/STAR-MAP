@@ -921,6 +921,7 @@ function renderNotebookPage() {
     ensureNotebookPageTitles(nb);
     document.getElementById("notebookPageTitleInput").value = nb.pageTitles[currentPageIndex] || "";
     const textContent = nb.pages[currentPageIndex] || "";
+    savedEditorSelection = null;
     document.getElementById("notebookPageInput").innerHTML = toEditorHtml(textContent);
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
     document.getElementById("notebookPageInput").contentEditable = String(notebookStorageReady);
@@ -930,6 +931,7 @@ function renderNotebookPage() {
     document.getElementById("starBtn").disabled = !notebookStorageReady;
     document.getElementById("pagesListBtn").disabled = !notebookStorageReady;
     document.getElementById("reorderPageBtn").disabled = !notebookStorageReady;
+    document.getElementById("insertNotebookBulletsBtn").disabled = !notebookStorageReady;
     updateStarButtonUI(); // تحديث حالة النجمة عند تغيير الصفحة
 }
 // دوال التحكم بالنجمة والصفحات
@@ -1211,6 +1213,7 @@ document.addEventListener("input", (e) => {
 });
 
 let savedEditorSelection = null;
+const NOTEBOOK_BULLET_RUN = "\u25AA\uFE0F".repeat(17);
 document.addEventListener("mousedown", (e) => {
     const control = e.target.closest(".format-toolbar button, .format-toolbar input, .format-toolbar select");
     if (!control) return;
@@ -1226,6 +1229,44 @@ function restoreEditorSelection(editor) {
     selection.removeAllRanges();
     selection.addRange(savedEditorSelection.range);
 }
+
+const insertNotebookBulletsBtn = document.getElementById("insertNotebookBulletsBtn");
+insertNotebookBulletsBtn.addEventListener("pointerdown", (event) => {
+    const editor = document.getElementById("notebookPageInput");
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount && editor.contains(selection.anchorNode)) {
+        savedEditorSelection = { editor, range: selection.getRangeAt(0).cloneRange() };
+        event.preventDefault();
+    }
+});
+insertNotebookBulletsBtn.addEventListener("click", () => {
+    if (!notebookStorageReady) return;
+    const editor = document.getElementById("notebookPageInput");
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    let range;
+    if (savedEditorSelection && savedEditorSelection.editor === editor) {
+        range = savedEditorSelection.range.cloneRange();
+    } else if (selection.rangeCount && editor.contains(selection.anchorNode)) {
+        range = selection.getRangeAt(0).cloneRange();
+    } else {
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+    }
+
+    range.deleteContents();
+    const textNode = document.createTextNode(NOTEBOOK_BULLET_RUN);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    editor.focus();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedEditorSelection = { editor, range: range.cloneRange() };
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+});
 
 document.addEventListener("input", async (e) => {
     if (e.target.id === "notebookPageTitleInput" && notebookStorageReady && activeBubbleId !== null && currentNotebookIndex !== null) {
