@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDocs, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeSlimToolbar } from "./slim-toolbar.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
@@ -67,7 +68,6 @@ onAuthStateChanged(auth, async (user) => {
         if (subLogoutBtn) subLogoutBtn.style.display = "none";
     }
 });
-
 const urlParams = new URLSearchParams(window.location.search);
 const parentBubbleId = urlParams.get('bubbleId');
 const parentTitle = urlParams.get('title') || 'Submap';
@@ -82,6 +82,7 @@ let subEdgesData = new vis.DataSet([]);
 let activeNodeId = null;
 let pendingAction = null;
 const RECENT_COLORS_KEY = "star-map-recent-colors";
+initializeSlimToolbar({ recentColorsKey: RECENT_COLORS_KEY });
 
 const subNodesRef = collection(db, `bubbles/${parentBubbleId}/subnodes`);
 const subEdgesRef = collection(db, `bubbles/${parentBubbleId}/subedges`);
@@ -276,105 +277,3 @@ document.getElementById("actionSubConfirmBtn").addEventListener("click", async (
         document.getElementById("confirmSubModal").classList.remove("active");
     }
 });
-
-function getRecentColors() {
-    try {
-        const colors = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) || "[]");
-        return Array.isArray(colors) ? colors.filter(color => /^#[0-9A-F]{6}$/i.test(color)) : [];
-    } catch (error) {
-        console.warn("Konnte gespeicherte Farben nicht laden:", error);
-        return [];
-    }
-}
-
-function renderRecentColors() {
-    document.querySelectorAll(".custom-colors").forEach(container => {
-        container.innerHTML = getRecentColors().map(color =>
-            `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`
-        ).join("");
-    });
-}
-
-function rememberColor(color) {
-    const normalized = color.toUpperCase();
-    const colors = [normalized, ...getRecentColors().filter(item => item !== normalized)].slice(0, 4);
-    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(colors));
-    renderRecentColors();
-}
-
-function applyEditorColor(editor, color) {
-    if (!/^#[0-9A-F]{6}$/i.test(color)) return;
-    restoreEditorSelection(editor);
-    editor.focus();
-    document.execCommand("foreColor", false, color);
-    rememberColor(color);
-}
-
-renderRecentColors();
-
-document.addEventListener("click", (e) => {
-    const menuToggle = e.target.closest(".format-menu-toggle");
-    if (menuToggle) {
-        menuToggle.closest(".format-toolbar").classList.toggle("open");
-        return;
-    }
-    const colorSwatch = e.target.closest(".color-swatch");
-    if (colorSwatch) {
-        const toolbar = colorSwatch.closest(".format-toolbar");
-        const editor = document.getElementById(toolbar.dataset.toolbarFor);
-        if (editor) applyEditorColor(editor, colorSwatch.dataset.color);
-        return;
-    }
-    const control = e.target.closest(".format-toolbar [data-command]");
-    if (!control || control.tagName !== "BUTTON") return;
-    const toolbar = control.closest(".format-toolbar");
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (!editor) return;
-    restoreEditorSelection(editor);
-    editor.focus();
-    document.execCommand(control.dataset.command, false, control.value || null);
-});
-
-document.addEventListener("change", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .hex-color-input");
-    if (!control || control.tagName === "BUTTON") return;
-    const toolbar = control.closest(".format-toolbar");
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (!editor) return;
-    if (control.classList.contains("hex-color-input")) {
-        applyEditorColor(editor, control.value.trim());
-        control.value = "";
-        return;
-    }
-    restoreEditorSelection(editor);
-    editor.focus();
-    const selectedValue = control.value;
-    document.execCommand(control.dataset.command, false, selectedValue);
-    if (control.dataset.command === "formatBlock") control.value = selectedValue;
-});
-
-document.addEventListener("input", (e) => {
-    const hexInput = e.target.closest(".hex-color-input");
-    if (!hexInput || !/^#[0-9A-F]{6}$/i.test(hexInput.value.trim())) return;
-    const toolbar = hexInput.closest(".format-toolbar");
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (editor) applyEditorColor(editor, hexInput.value.trim());
-    hexInput.value = "";
-});
-
-let savedEditorSelection = null;
-document.addEventListener("mousedown", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .color-swatch, .format-toolbar .hex-color-input");
-    if (!control) return;
-    const editor = document.getElementById(control.closest(".format-toolbar").dataset.toolbarFor);
-    const selection = window.getSelection();
-    if (editor && selection.rangeCount && editor.contains(selection.anchorNode)) {
-        savedEditorSelection = { editor, range: selection.getRangeAt(0).cloneRange() };
-    }
-});
-function restoreEditorSelection(editor) {
-    if (!savedEditorSelection || savedEditorSelection.editor !== editor) return;
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(savedEditorSelection.range);
-}
