@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, getDocs, setDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeSlimToolbar } from "./slim-toolbar.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
@@ -91,8 +92,7 @@ let notebookSaveDirty = false;
 let notebookSaveRevision = 0;
 let notebookStorageReady = false;
 const RECENT_COLORS_KEY = "star-map-recent-colors";
-const DEFAULT_COLORS = ["#fe019a", "#000000", "#8000f8", "#0400f8"];
-let stagedFormatColor = DEFAULT_COLORS[0];
+initializeSlimToolbar({ recentColorsKey: RECENT_COLORS_KEY, extraButtonId: "insertNotebookBulletsBtn" });
 
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
@@ -355,10 +355,6 @@ window.openQuickNoteModal = (index) => {
     titleInput.value = note.title || "";
     editor.dataset.editorIndex = String(index);
     editor.innerHTML = toEditorHtml(note.text);
-    const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="quickNoteModalEditor"]');
-    toolbar.classList.remove("open");
-    toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
-    setFormatView(toolbar, "main");
     document.getElementById("quickNoteModal").classList.add("active");
 };
 
@@ -373,20 +369,6 @@ function renderQuickNoteCard(note, index) {
         <div class="item-card">
             <div class="item-title-row">
                 <input type="text" value="${escapeHtml(note.title)}" onchange="updateData('quickNotes', ${index}, 'title', this.value)">
-                <div class="format-toolbar header-format-toolbar" data-toolbar-for="quickNote-${index}" aria-label="Textformatierung">
-                    <button type="button" class="format-menu-toggle" title="Textformatierung" aria-label="Textformatierung">Aa</button>
-                    <div class="format-tools">
-                        <button type="button" class="format-toggle" data-command="bold" title="Fett" aria-label="Fett">B</button>
-                        <div class="color-swatches" aria-label="Standardfarben">
-                            ${DEFAULT_COLORS.map(color => `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`).join("")}
-                        </div>
-                        <div class="custom-colors" aria-label="Zuletzt verwendete Farben"></div>
-                        <input class="hex-color-input" type="text" inputmode="text" maxlength="7" placeholder="#FF5733" aria-label="Hex-Farbcode">
-                        <select data-command="formatBlock" title="Textstil" aria-label="Textstil">
-                            <option value="p">Normal</option><option value="h3">Überschrift</option><option value="blockquote">Zitat</option>
-                        </select>
-                    </div>
-                </div>
             </div>
             <div id="quickNote-${index}" class="quick-note-editor rich-editor" contenteditable="true" data-editor-type="quick-note" data-editor-index="${index}" role="textbox" aria-multiline="true" data-placeholder="Text hier eingeben...">${toEditorHtml(note.text)}</div>
             <div class="item-actions">
@@ -451,8 +433,9 @@ function renderContent(id) {
     if (activeQuickNoteModalIndex !== null && document.getElementById("quickNoteModal").classList.contains("active")) {
         const activeNote = content.quickNotes?.[activeQuickNoteModalIndex];
         const modalEditor = document.getElementById("quickNoteModalEditor");
-        const modalToolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="quickNoteModalEditor"]');
-        const modalHasFocus = modalEditor === document.activeElement || modalToolbar.contains(document.activeElement);
+        const slimToolbar = document.getElementById("slimToolbar");
+        const modalHasFocus = modalEditor === document.activeElement
+            || (slimToolbar.contains(document.activeElement) && slimToolbar.dataset.toolbarFor === modalEditor.id);
         if (activeNote && editingQuickNoteIndex === null && !modalHasFocus) {
             document.getElementById("quickNoteModalTitle").value = activeNote.title || "";
             modalEditor.innerHTML = toEditorHtml(activeNote.text);
@@ -533,7 +516,6 @@ function renderContent(id) {
             <img src="${p.url}">
             <button class="delete-btn" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); width:28px; height:28px; border-radius:50%; display:flex; justify-content:center; align-items:center;" onclick="askDelete('photos', ${i})">&times;</button>
         </div>`).join("");
-    renderRecentColors();
 }
 
 function toEditorHtml(value) {
@@ -549,89 +531,6 @@ window.updateData = async (type, index, field, value) => {
     b.content[type][index][field] = value;
     await saveBubbleContent(activeBubbleId, b.content);
 };
-
-function getRecentColors() {
-    try {
-        const colors = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) || "[]");
-        return Array.isArray(colors) ? colors.filter(color => /^#[0-9A-F]{6}$/i.test(color)) : [];
-    } catch (error) {
-        console.warn("Konnte gespeicherte Farben nicht laden:", error);
-        return [];
-    }
-}
-
-function rememberColor(color) {
-    const normalized = color.toUpperCase();
-    const colors = [normalized, ...getRecentColors().filter(item => item !== normalized)].slice(0, 4);
-    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(colors));
-    renderRecentColors();
-}
-
-function renderRecentColors() {
-    document.querySelectorAll(".color-format-view .color-swatches").forEach(defaultColors => {
-        defaultColors.innerHTML = DEFAULT_COLORS.map(color =>
-            `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Standardfarbe ${color}"></button>`
-        ).join("");
-    });
-    document.querySelectorAll(".custom-colors").forEach(container => {
-        container.innerHTML = getRecentColors().map(color =>
-            `<button type="button" class="color-swatch" data-color="${color}" style="background:${color}" aria-label="Farbe ${color}"></button>`
-        ).join("");
-    });
-    updateSelectedPaletteColor();
-}
-
-function applyEditorColor(editor, color) {
-    if (!/^#[0-9A-F]{6}$/i.test(color)) return;
-    restoreEditorSelection(editor);
-    editor.focus();
-    document.execCommand("foreColor", false, color);
-    rememberColor(color);
-    editor.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-function updateSelectedPaletteColor() {
-    document.querySelectorAll(".color-format-view .color-swatch").forEach(swatch => {
-        const selected = swatch.dataset.color.toUpperCase() === stagedFormatColor.toUpperCase();
-        swatch.classList.toggle("selected", selected);
-        swatch.setAttribute("aria-pressed", String(selected));
-    });
-}
-
-function setStagedFormatColor(color, clearManualInput = true) {
-    if (!/^#[0-9A-F]{6}$/i.test(color)) return false;
-    stagedFormatColor = color.toUpperCase();
-    document.querySelectorAll(".format-toolbar .hsl-color-picker").forEach(input => { input.value = stagedFormatColor; });
-    document.querySelectorAll(".format-toolbar .current-color-hex").forEach(input => { input.value = stagedFormatColor; });
-    if (clearManualInput) {
-        document.querySelectorAll(".format-toolbar .manual-color-hex").forEach(input => {
-            input.value = "";
-            input.removeAttribute("aria-invalid");
-        });
-    }
-    document.querySelectorAll(".format-toolbar .confirm-color-btn").forEach(button => { button.disabled = false; });
-    updateSelectedPaletteColor();
-    return true;
-}
-
-function setFormatView(toolbar, viewName) {
-    toolbar.querySelectorAll("[data-format-view]").forEach(view => {
-        const active = view.dataset.formatView === viewName;
-        view.hidden = !active;
-        view.classList.toggle("active", active);
-    });
-}
-
-function executeFormatCommand(toolbar, command, value = null) {
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (!editor) return;
-    restoreEditorSelection(editor);
-    editor.focus();
-    document.execCommand(command, false, value);
-    editor.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-renderRecentColors();
 
 document.addEventListener("focusin", (event) => {
     const editor = event.target.closest(".quick-note-editor");
@@ -1069,166 +968,17 @@ document.getElementById("reorderPageBtn").addEventListener("click", async () => 
     renderNotebookPage();
 });
 
-document.addEventListener("click", async (e) => {
-    const menuToggle = e.target.closest(".format-menu-toggle");
-    if (menuToggle) {
-        const toolbar = menuToggle.closest(".format-toolbar");
-        const isOpen = toolbar.classList.toggle("open");
-        menuToggle.setAttribute("aria-expanded", String(isOpen));
-        if (isOpen) {
-            setFormatView(toolbar, "main");
-            setStagedFormatColor(stagedFormatColor);
-        }
-        return;
-    }
-    const viewButton = e.target.closest(".format-view-option, .format-back-btn");
-    if (viewButton) {
-        const toolbar = viewButton.closest(".format-toolbar");
-        const viewName = viewButton.dataset.viewTarget;
-        setFormatView(toolbar, viewName);
-        if (viewName === "colors") setStagedFormatColor(stagedFormatColor);
-        return;
-    }
-    const copyHexButton = e.target.closest(".copy-hex-btn");
-    if (copyHexButton) {
-        const hexInput = copyHexButton.closest(".format-view").querySelector(".current-color-hex");
-        try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(hexInput.value);
-            } else {
-                hexInput.select();
-                if (!document.execCommand("copy")) throw new Error("Kopieren wurde vom Browser abgelehnt.");
-            }
-            copyHexButton.textContent = "Kopiert";
-            window.setTimeout(() => { copyHexButton.textContent = "Kopieren"; }, 1200);
-        } catch (error) {
-            console.error("HEX-Farbcode konnte nicht kopiert werden:", error);
-            alert("Der HEX-Farbcode konnte nicht kopiert werden.");
-        }
-        return;
-    }
-    const confirmColorButton = e.target.closest(".confirm-color-btn");
-    if (confirmColorButton) {
-        const toolbar = confirmColorButton.closest(".format-toolbar");
-        const editor = document.getElementById(toolbar.dataset.toolbarFor);
-        if (editor) {
-            applyEditorColor(editor, stagedFormatColor);
-            toolbar.classList.remove("open");
-            toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
-        }
-        return;
-    }
-    const colorSwatch = e.target.closest(".color-swatch");
-    if (colorSwatch) {
-        const toolbar = colorSwatch.closest(".format-toolbar");
-        const editor = document.getElementById(toolbar.dataset.toolbarFor);
-        if (colorSwatch.closest(".color-format-view")) {
-            setStagedFormatColor(colorSwatch.dataset.color);
-            return;
-        }
-        if (editor) applyEditorColor(editor, colorSwatch.dataset.color);
-        return;
-    }
-    const control = e.target.closest(".format-toolbar [data-command]");
-    if (!control) return;
-    if (control.tagName !== "BUTTON") return;
-    const toolbar = control.closest(".format-toolbar");
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (!editor) return;
-    restoreEditorSelection(editor);
-    editor.focus();
-    document.execCommand(control.dataset.command, false, control.value || null);
-    if (control.dataset.command === "bold" && control.classList.contains("font-bold-toggle")) {
-        control.setAttribute("aria-pressed", String(document.queryCommandState("bold")));
-    }
-    editor.dispatchEvent(new Event("input", { bubbles: true }));
-});
-
-document.addEventListener("click", (event) => {
-    const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="notebookPageInput"].open');
-    if (toolbar && !toolbar.contains(event.target)) {
-        toolbar.classList.remove("open");
-        toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
-    }
-});
-
 document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     const quickNoteModal = document.getElementById("quickNoteModal");
     if (quickNoteModal.classList.contains("active")) {
         quickNoteModal.classList.remove("active");
         activeQuickNoteModalIndex = null;
-        return;
     }
-    const toolbar = document.querySelector('.header-format-toolbar[data-toolbar-for="notebookPageInput"].open');
-    if (!toolbar) return;
-    toolbar.classList.remove("open");
-    toolbar.querySelector(".format-menu-toggle").setAttribute("aria-expanded", "false");
-});
-
-document.addEventListener("change", (e) => {
-    const control = e.target.closest(".format-toolbar [data-command], .format-toolbar .hex-color-input, .format-toolbar .font-format-select");
-    if (!control || control.tagName === "BUTTON") return;
-    const toolbar = control.closest(".format-toolbar");
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (!editor) return;
-    if (control.classList.contains("font-format-select")) {
-        const [kind, value] = control.value.split(/:(.+)/);
-        executeFormatCommand(toolbar, kind === "font" ? "fontName" : "formatBlock", value);
-        return;
-    }
-    if (control.classList.contains("hex-color-input")) {
-        applyEditorColor(editor, control.value.trim());
-        control.value = "";
-        return;
-    }
-    restoreEditorSelection(editor);
-    editor.focus();
-    const selectedValue = control.value;
-    document.execCommand(control.dataset.command, false, selectedValue);
-    if (control.dataset.command === "formatBlock") control.value = selectedValue;
-    editor.dispatchEvent(new Event("input", { bubbles: true }));
-});
-
-document.addEventListener("input", (e) => {
-    const colorPicker = e.target.closest(".hsl-color-picker");
-    if (colorPicker) {
-        setStagedFormatColor(colorPicker.value);
-        return;
-    }
-    const manualHex = e.target.closest(".manual-color-hex");
-    if (manualHex) {
-        const validColor = /^#[0-9A-F]{6}$/i.test(manualHex.value.trim());
-        manualHex.toggleAttribute("aria-invalid", manualHex.value.length > 0 && !validColor);
-        manualHex.closest(".format-toolbar").querySelector(".confirm-color-btn").disabled = manualHex.value.length > 0 && !validColor;
-        if (validColor) setStagedFormatColor(manualHex.value.trim(), false);
-        return;
-    }
-    const hexInput = e.target.closest(".hex-color-input");
-    if (!hexInput || !/^#[0-9A-F]{6}$/i.test(hexInput.value.trim())) return;
-    const toolbar = hexInput.closest(".format-toolbar");
-    const editor = document.getElementById(toolbar.dataset.toolbarFor);
-    if (editor) applyEditorColor(editor, hexInput.value.trim());
-    hexInput.value = "";
 });
 
 let savedEditorSelection = null;
 const NOTEBOOK_BULLET_RUN = "\u25AA\uFE0F".repeat(17);
-document.addEventListener("mousedown", (e) => {
-    const control = e.target.closest(".format-toolbar button, .format-toolbar input, .format-toolbar select");
-    if (!control) return;
-    const editor = document.getElementById(control.closest(".format-toolbar").dataset.toolbarFor);
-    const selection = window.getSelection();
-    if (editor && selection.rangeCount && editor.contains(selection.anchorNode)) {
-        savedEditorSelection = { editor, range: selection.getRangeAt(0).cloneRange() };
-    }
-});
-function restoreEditorSelection(editor) {
-    if (!savedEditorSelection || savedEditorSelection.editor !== editor) return;
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(savedEditorSelection.range);
-}
 
 const insertNotebookBulletsBtn = document.getElementById("insertNotebookBulletsBtn");
 insertNotebookBulletsBtn.addEventListener("pointerdown", (event) => {
