@@ -330,14 +330,12 @@ input:checked + .slider::before { transform: translateX(22px); }
 .slim-color-layout { display: grid; grid-template-columns: 56px minmax(130px, 1fr) minmax(130px, 1.2fr); gap: 10px; align-items: start; }
 .slim-color-picker-label,
 .slim-hex-fields,
-.slim-palette-group,
-.slim-font-label { display: flex; flex-direction: column; gap: 5px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; }
+.slim-palette-group { display: flex; flex-direction: column; gap: 5px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; }
 .slim-bar .slim-color-picker { width: 56px; padding: 3px; cursor: pointer; }
 .slim-hex-fields { display: grid; grid-template-columns: 1fr auto; align-items: end; }
 .slim-hex-fields label { display: flex; flex-direction: column; gap: 4px; }
 .slim-bar .slim-hex-display,
-.slim-bar .slim-manual-hex,
-.slim-bar .slim-font-select { width: 100%; min-width: 0; padding: 0 7px; font-size: 0.76rem; }
+.slim-bar .slim-manual-hex { width: 100%; min-width: 0; padding: 0 7px; font-size: 0.76rem; }
 .slim-bar .slim-manual-hex { grid-column: 1 / -1; user-select: text; -webkit-user-select: text; }
 .slim-bar .slim-manual-hex[aria-invalid="true"] { border-color: var(--danger-color); }
 .slim-bar .slim-copy-hex { height: 32px; font-size: 0.68rem; }
@@ -355,8 +353,10 @@ input:checked + .slider::before { transform: translateX(22px); }
 .slim-panel-footer { display: flex; justify-content: flex-end; }
 .slim-bar .slim-confirm-color { border-color: var(--accent-hover); background: var(--accent-soft); }
 .slim-bar .slim-confirm-color:disabled { opacity: 0.5; cursor: not-allowed; }
-.slim-font-label { max-width: 320px; }
-.slim-bar .slim-font-select { height: 34px; }
+.slim-format-group-label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; }
+.slim-format-options { display: flex; flex-wrap: wrap; gap: 5px; }
+.slim-bar .slim-format-option { min-height: 30px; }
+.slim-bar .slim-text-color { border-bottom-width: 3px; border-bottom-style: solid; }
 .notebook-page-container { flex: 1; display: flex; flex-direction: column; gap: 8px; margin-top: 0; min-height: 0; }
 .notebook-textarea {
     flex: 1; width: 100%; min-height: 0; height: auto;
