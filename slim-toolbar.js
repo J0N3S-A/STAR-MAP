@@ -58,6 +58,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
             ${button("I", 'data-command="italic" title="Kursiv" aria-label="Kursiv"')}
             ${button("U", 'data-command="underline" title="Unterstrichen" aria-label="Unterstrichen"')}
             ${button("S", 'data-command="strikeThrough" title="Durchgestrichen" aria-label="Durchgestrichen"')}
+            ${button("A", 'class="slim-panel-toggle slim-text-color" data-panel-target="farben" aria-expanded="false" title="Textfarbe ändern" aria-label="Textfarbe ändern"')}
             <span class="slim-bar-divider slim-notebook-divider" aria-hidden="true"></span>
             ${button("Regler", 'class="slim-panel-toggle" data-panel-target="regler" aria-expanded="false"')}
             ${button("Farben", 'class="slim-panel-toggle" data-panel-target="farben" aria-expanded="false"')}
@@ -89,26 +90,20 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
             </section>
             <section class="slim-panel" data-panel="fonts" hidden>
                 <div class="slim-panel-heading"><strong>Schriftarten</strong></div>
-                <label class="slim-font-label">Schriftstil und Schriftart
-                    <select class="slim-font-select" aria-label="Schriftstil und Schriftart">
-                        <optgroup label="Textstil">
-                            <option value="block:p">Normal</option>
-                            <option value="block:h2">Überschrift 1</option>
-                            <option value="block:h3">Überschrift 2</option>
-                            <option value="block:h4">Überschrift 3</option>
-                            <option value="block:blockquote">Zitat</option>
-                        </optgroup>
-                        <optgroup label="Schriftart">
-                            <option value="font:Arial">Arial</option>
-                            <option value="font:Georgia">Georgia</option>
-                            <option value="font:Verdana">Verdana</option>
-                            <option value="font:Trebuchet MS">Trebuchet MS</option>
-                            <option value="font:Courier New">Courier New</option>
-                            <option value="font:Times New Roman">Times New Roman</option>
-                            <option value="font:Plus Jakarta Sans">Plus Jakarta Sans</option>
-                        </optgroup>
-                    </select>
-                </label>
+                <span class="slim-format-group-label">Textstil</span>
+                <div class="slim-format-options">
+                    ${button("Normal", 'class="slim-format-option" data-command="formatBlock" data-format-value="p"')}
+                    ${button("Überschrift 1", 'class="slim-format-option" data-command="formatBlock" data-format-value="h2"')}
+                    ${button("Überschrift 2", 'class="slim-format-option" data-command="formatBlock" data-format-value="h3"')}
+                    ${button("Überschrift 3", 'class="slim-format-option" data-command="formatBlock" data-format-value="h4"')}
+                    ${button("Zitat", 'class="slim-format-option" data-command="formatBlock" data-format-value="blockquote"')}
+                </div>
+                <span class="slim-format-group-label">Schriftart</span>
+                <div class="slim-format-options">
+                    ${["Arial", "Georgia", "Verdana", "Trebuchet MS", "Courier New", "Times New Roman", "Plus Jakarta Sans"]
+                        .map(font => button(font, `class="slim-format-option" data-command="fontName" data-format-value="${font}"`))
+                        .join("")}
+                </div>
             </section>
         </div>`;
     document.body.appendChild(toolbar);
@@ -135,6 +130,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
     let activeEditor = null;
     let savedRange = null;
     let contextMenuActive = false;
+    let activeTypingColor = null;
     let stagedColor = DEFAULT_COLORS[0];
     let hsl = { hue: 324, saturation: 100, lightness: 50 };
     const viewport = window.visualViewport;
@@ -194,6 +190,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
     function setStagedColor(color, clearManualInput = true) {
         if (!/^#[0-9A-F]{6}$/i.test(color)) return false;
         stagedColor = color.toUpperCase();
+        toolbar.querySelector(".slim-text-color").style.borderBottom = `3px solid ${stagedColor}`;
         hsl = hexToHsl(stagedColor);
         hueSlider.value = String(hsl.hue);
         brightnessSlider.value = String(hsl.lightness);
@@ -215,6 +212,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
         hsl.hue = Number(hueSlider.value);
         hsl.lightness = Number(brightnessSlider.value);
         stagedColor = hslToHex(hsl.hue, 100, hsl.lightness * (1 - Number(shadowSlider.value) / 100)).toUpperCase();
+        toolbar.querySelector(".slim-text-color").style.borderBottom = `3px solid ${stagedColor}`;
         colorPicker.value = stagedColor;
         hexDisplay.value = stagedColor;
         colorPreview.style.backgroundColor = stagedColor;
@@ -240,6 +238,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
         if (!activeEditor) return;
         restoreSelection();
         activeEditor.focus();
+        document.execCommand("styleWithCSS", false, true);
         document.execCommand(command, false, value);
         activeEditor.dispatchEvent(new Event("input", { bubbles: true }));
         captureSelection();
@@ -247,6 +246,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
 
     function applyColor() {
         if (!activeEditor) return;
+        activeTypingColor = stagedColor;
         runCommand("foreColor", stagedColor);
         rememberColor(stagedColor);
         setPanel("");
@@ -306,6 +306,11 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
     });
 
     document.addEventListener("selectionchange", captureSelection);
+    document.addEventListener("beforeinput", event => {
+        if (event.target !== activeEditor || !activeTypingColor || (event.inputType || "").startsWith("delete")) return;
+        document.execCommand("styleWithCSS", false, true);
+        document.execCommand("foreColor", false, activeTypingColor);
+    });
     document.addEventListener("contextmenu", event => {
         if (!activeEditor || !activeEditor.contains(event.target)) return;
         contextMenuActive = true;
@@ -330,6 +335,11 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
         const swatch = event.target.closest(".slim-color-swatch");
         if (swatch) {
             setStagedColor(swatch.dataset.color);
+            return;
+        }
+
+        if (event.target.closest(".slim-format-option")) {
+            runCommand(event.target.closest(".slim-format-option").dataset.command, event.target.closest(".slim-format-option").dataset.formatValue);
             return;
         }
 
@@ -359,7 +369,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
         }
 
         const commandButton = event.target.closest("[data-command]");
-        if (commandButton) runCommand(commandButton.dataset.command);
+        if (commandButton) runCommand(commandButton.dataset.command, commandButton.dataset.formatValue || null);
     });
 
     toolbar.addEventListener("input", event => {
@@ -377,13 +387,6 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
             manualHex.toggleAttribute("aria-invalid", value.length > 0 && !validColor);
             toolbar.querySelectorAll(".slim-confirm-color").forEach(button => { button.disabled = value.length > 0 && !validColor; });
             if (validColor) setStagedColor(value, false);
-        }
-    });
-
-    toolbar.addEventListener("change", event => {
-        if (event.target.matches(".slim-font-select")) {
-            const [kind, value] = event.target.value.split(/:(.+)/);
-            runCommand(kind === "font" ? "fontName" : "formatBlock", value);
         }
     });
 
