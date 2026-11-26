@@ -84,7 +84,13 @@ let activeGroupRecordingIndex = null;
 let isPageStarred = {}; // لتتبع الصفحات المميزة
 let editingQuickNoteIndex = null;
 let activeQuickNoteModalIndex = null;
+let activeQuickNoteBubbleId = null;
 let movingQuickNoteIndex = null;
+let quickNoteSaveTimer = null;
+let quickNoteSaveTarget = null;
+let quickNoteSaveQueue = Promise.resolve();
+const quickNoteDrafts = new Map();
+let quickNoteDraftRevision = 0;
 const NOTEBOOK_SAVE_DELAY_MS = 700;
 let notebookSaveTimer = null;
 let notebookSaveQueue = Promise.resolve();
@@ -138,6 +144,13 @@ onSnapshot(collection(db, "bubbles"), (snapshot) => {
         const d = change.doc.data();
         if (change.type === "added" || change.type === "modified") {
             const existing = nodesData.get(change.doc.id);
+            if (d.content?.quickNotes) {
+                for (const draft of quickNoteDrafts.values()) {
+                    if (draft.bubbleId !== change.doc.id) continue;
+                    const note = d.content.quickNotes[draft.index];
+                    if (note) note.text = draft.text;
+                }
+            }
             if (existing?.content?.notebooks && d.content?.notebooks) {
                 const cachedNotebooks = new Map(existing.content.notebooks.filter(nb => nb.id).map(nb => [nb.id, nb]));
                 d.content.notebooks = d.content.notebooks.map(notebook => {
@@ -338,9 +351,11 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 document.getElementById("closeContentModal").addEventListener("click", () => document.getElementById("contentModal").classList.remove("active"));
-document.getElementById("closeQuickNoteModal").addEventListener("click", () => {
+document.getElementById("closeQuickNoteModal").addEventListener("click", async () => {
+    if (activeQuickNoteBubbleId !== null && !await flushQuickNoteSave(activeQuickNoteBubbleId, activeQuickNoteModalIndex)) return;
     document.getElementById("quickNoteModal").classList.remove("active");
     activeQuickNoteModalIndex = null;
+    activeQuickNoteBubbleId = null;
 });
 document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
     if (activeBubbleId) updateDoc(doc(db, "bubbles", activeBubbleId), { title: e.target.value });
@@ -350,10 +365,12 @@ window.openQuickNoteModal = (index) => {
     const bubble = nodesData.get(activeBubbleId);
     const note = bubble.content.quickNotes[index];
     activeQuickNoteModalIndex = index;
+    activeQuickNoteBubbleId = activeBubbleId;
     const titleInput = document.getElementById("quickNoteModalTitle");
     const editor = document.getElementById("quickNoteModalEditor");
     titleInput.value = note.title || "";
     editor.dataset.editorIndex = String(index);
+    editor.dataset.bubbleId = String(activeQuickNoteBubbleId);
     editor.innerHTML = toEditorHtml(note.text);
     document.getElementById("quickNoteModal").classList.add("active");
 };
@@ -430,7 +447,7 @@ function renderContent(id) {
     }
 
     renderQuickNotes(content);
-    if (activeQuickNoteModalIndex !== null && document.getElementById("quickNoteModal").classList.contains("active")) {
+    if (id === activeQuickNoteBubbleId && activeQuickNoteModalIndex !== null && document.getElementById("quickNoteModal").classList.contains("active")) {
         const activeNote = content.quickNotes?.[activeQuickNoteModalIndex];
         const modalEditor = document.getElementById("quickNoteModalEditor");
         const slimToolbar = document.getElementById("slimToolbar");
@@ -532,6 +549,60 @@ window.updateData = async (type, index, field, value) => {
     await saveBubbleContent(activeBubbleId, b.content);
 };
 
+function quickNoteDraftKey(bubbleId, index) {
+    return `${bubbleId}:${index}`;
+}
+
+function enqueueQuickNoteSave(bubbleId, index = null) {
+    const save = quickNoteSaveQueue.catch(() => {}).then(async () => {
+        const bubble = nodesData.get(bubbleId);
+        if (!bubble) throw new Error("Die Schnellnotiz ist nicht mehr verfügbar.");
+        const key = index === null ? null : quickNoteDraftKey(bubbleId, index);
+        const draft = key ? quickNoteDrafts.get(key) : null;
+        const note = index === null ? null : bubble.content.quickNotes?.[index];
+        if (draft && note) note.text = draft.text;
+        await saveBubbleContent(bubbleId, bubble.content);
+        if (key && draft && quickNoteDrafts.get(key)?.revision === draft.revision) quickNoteDrafts.delete(key);
+    });
+    quickNoteSaveQueue = save.catch(() => {});
+    return save;
+}
+
+function scheduleQuickNoteSave(bubbleId, index) {
+    if (quickNoteSaveTimer !== null) {
+        clearTimeout(quickNoteSaveTimer);
+        const pendingTarget = quickNoteSaveTarget;
+        if (pendingTarget && (pendingTarget.bubbleId !== bubbleId || pendingTarget.index !== index)) {
+            enqueueQuickNoteSave(pendingTarget.bubbleId, pendingTarget.index).catch(error => {
+                console.error("Schnellnotiz konnte nicht gespeichert werden:", error);
+            });
+        }
+    }
+    quickNoteSaveTarget = { bubbleId, index };
+    quickNoteSaveTimer = setTimeout(() => {
+        quickNoteSaveTimer = null;
+        quickNoteSaveTarget = null;
+        enqueueQuickNoteSave(bubbleId, index).catch(error => {
+            console.error("Schnellnotiz konnte nicht gespeichert werden:", error);
+        });
+    }, 250);
+}
+
+async function flushQuickNoteSave(bubbleId, index) {
+    if (quickNoteSaveTimer !== null && quickNoteSaveTarget?.bubbleId === bubbleId && quickNoteSaveTarget.index === index) {
+        clearTimeout(quickNoteSaveTimer);
+        quickNoteSaveTimer = null;
+        quickNoteSaveTarget = null;
+    }
+    try {
+        await enqueueQuickNoteSave(bubbleId, index);
+        return true;
+    } catch (error) {
+        console.error("Schnellnotiz konnte nicht gespeichert werden:", error);
+        return false;
+    }
+}
+
 document.addEventListener("focusin", (event) => {
     const editor = event.target.closest(".quick-note-editor");
     if (editor) editingQuickNoteIndex = Number(editor.dataset.editorIndex);
@@ -602,14 +673,18 @@ document.getElementById("confirmQuickNoteGroupMoveBtn").addEventListener("click"
 });
 
 document.getElementById("quickNoteModalTitle").addEventListener("change", async (event) => {
-    if (activeBubbleId === null || activeQuickNoteModalIndex === null) return;
-    await window.updateData("quickNotes", activeQuickNoteModalIndex, "title", event.target.value);
+    if (activeQuickNoteBubbleId === null || activeQuickNoteModalIndex === null) return;
+    const bubble = nodesData.get(activeQuickNoteBubbleId);
+    const note = bubble?.content?.quickNotes?.[activeQuickNoteModalIndex];
+    if (!note) return;
+    note.title = event.target.value;
+    await flushQuickNoteSave(activeQuickNoteBubbleId, activeQuickNoteModalIndex);
 });
 
 document.getElementById("addNotebookBtn").addEventListener("click", async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.notebooks) b.content.notebooks = [];
-    const notebook = { title: "Neues Notizbuch", pages: [""], pageTitles: [""] };
+    const notebook = { title: "Neues Notizbuch", pages: ["\n".repeat(100)], pageTitles: [""] };
     ensureNotebookPageTitles(notebook);
     b.content.notebooks.push(notebook);
     await saveBubbleContent(activeBubbleId, b.content);
@@ -821,7 +896,10 @@ function renderNotebookPage() {
     document.getElementById("notebookPageTitleInput").value = nb.pageTitles[currentPageIndex] || "";
     const textContent = nb.pages[currentPageIndex] || "";
     savedEditorSelection = null;
-    document.getElementById("notebookPageInput").innerHTML = toEditorHtml(textContent);
+    const editor = document.getElementById("notebookPageInput");
+    editor.innerHTML = toEditorHtml(textContent);
+    editor.scrollTop = 0;
+    document.getElementById("notebookModal").querySelector(".notebook-card").classList.remove("notebook-scrolled");
     document.getElementById("pageIndicator").innerText = `Seite ${currentPageIndex + 1}`;
     document.getElementById("notebookPageInput").contentEditable = String(notebookStorageReady);
     document.getElementById("notebookPageTitleInput").disabled = !notebookStorageReady;
@@ -833,6 +911,11 @@ function renderNotebookPage() {
     document.getElementById("insertNotebookBulletsBtn").disabled = !notebookStorageReady;
     updateStarButtonUI(); // تحديث حالة النجمة عند تغيير الصفحة
 }
+
+document.getElementById("notebookPageInput").addEventListener("scroll", event => {
+    const card = document.getElementById("notebookModal").querySelector(".notebook-card");
+    card.classList.toggle("notebook-scrolled", event.currentTarget.scrollTop > 16);
+});
 // دوال التحكم بالنجمة والصفحات
 async function loadStarredPages() {
     const b = nodesData.get(activeBubbleId);
@@ -968,12 +1051,14 @@ document.getElementById("reorderPageBtn").addEventListener("click", async () => 
     renderNotebookPage();
 });
 
-document.addEventListener("keydown", (event) => {
+document.addEventListener("keydown", async (event) => {
     if (event.key !== "Escape") return;
     const quickNoteModal = document.getElementById("quickNoteModal");
     if (quickNoteModal.classList.contains("active")) {
+        if (activeQuickNoteBubbleId !== null && !await flushQuickNoteSave(activeQuickNoteBubbleId, activeQuickNoteModalIndex)) return;
         quickNoteModal.classList.remove("active");
         activeQuickNoteModalIndex = null;
+        activeQuickNoteBubbleId = null;
     }
 });
 
@@ -1032,7 +1117,19 @@ document.addEventListener("input", async (e) => {
     const editor = e.target.closest(".rich-editor");
     if (!editor) return;
     if (editor.dataset.editorType === "quick-note") {
-        await updateData("quickNotes", Number(editor.dataset.editorIndex), "text", editor.innerHTML);
+        const bubbleId = editor.dataset.bubbleId || activeBubbleId;
+        const bubble = nodesData.get(bubbleId);
+        const note = bubble?.content?.quickNotes?.[Number(editor.dataset.editorIndex)];
+        if (!note) return;
+        note.text = editor.innerHTML;
+        const index = Number(editor.dataset.editorIndex);
+        quickNoteDrafts.set(quickNoteDraftKey(bubbleId, index), {
+            bubbleId,
+            index,
+            text: editor.innerHTML,
+            revision: ++quickNoteDraftRevision
+        });
+        scheduleQuickNoteSave(bubbleId, index);
     } else if (editor.dataset.editorType === "notebook" && notebookStorageReady && activeBubbleId !== null && currentNotebookIndex !== null) {
         const b = nodesData.get(activeBubbleId);
         if (!b) return;
@@ -1066,7 +1163,7 @@ btn.addEventListener("pointerdown", () => {
             currentPageIndex = lastPageIndex;
         } else {
             ensureNotebookPageTitles(nb);
-            nb.pages.push("");
+            nb.pages.push("\n".repeat(100));
             nb.pageTitles.push("");
             nb.pageIds.push(createNotebookId());
             try {
@@ -1096,7 +1193,7 @@ btn.addEventListener("pointerup", async () => {
             const nextPageIndex = currentPageIndex + 1;
             if (nextPageIndex >= nb.pages.length) {
                 ensureNotebookPageTitles(nb);
-                nb.pages.push("");
+                nb.pages.push("\n".repeat(100));
                 nb.pageTitles.push("");
                 nb.pageIds.push(createNotebookId());
                 try {

@@ -61,7 +61,6 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
             ${button("A", 'class="slim-panel-toggle slim-text-color" data-panel-target="farben" aria-expanded="false" title="Textfarbe ändern" aria-label="Textfarbe ändern"')}
             <span class="slim-bar-divider slim-notebook-divider" aria-hidden="true"></span>
             ${button("Regler", 'class="slim-panel-toggle" data-panel-target="regler" aria-expanded="false"')}
-            ${button("Farben", 'class="slim-panel-toggle" data-panel-target="farben" aria-expanded="false"')}
             ${button("Schriftarten", 'class="slim-panel-toggle" data-panel-target="fonts" aria-expanded="false"')}
         </div>
         <div class="slim-bar-panels" hidden>
@@ -114,7 +113,7 @@ export function initializeSlimToolbar({ recentColorsKey, extraButtonId } = {}) {
     if (extraButton) {
         extraButton.classList.add("slim-bullet-button");
         extraButton.setAttribute("onmousedown", "event.preventDefault()");
-        quickActions.append(extraButton);
+        quickActions.insertBefore(extraButton, notebookDivider);
     } else {
         notebookDivider.hidden = true;
     }
