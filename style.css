@@ -177,13 +177,18 @@ input:checked + .slider::before { transform: translateX(22px); }
 .notebook-card .modal-header .notebook-title-display { flex: 1; min-width: 0; }
 .notebook-card .modal-header {
     position: relative;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
     justify-content: initial;
     text-align: initial;
+    transition: gap 0.18s ease, padding 0.18s ease;
 }
+.notebook-card.notebook-scrolled .modal-header { gap: 0; }
+.notebook-card.notebook-scrolled .notebook-title-display,
+.notebook-card.notebook-scrolled .notebook-page-title-input { display: none; }
 .notebook-header-controls {
     display: grid;
     grid-template-columns: 1fr auto;
