@@ -351,12 +351,19 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 document.getElementById("closeContentModal").addEventListener("click", () => document.getElementById("contentModal").classList.remove("active"));
-document.getElementById("closeQuickNoteModal").addEventListener("click", async () => {
-    if (activeQuickNoteBubbleId !== null && !await flushQuickNoteSave(activeQuickNoteBubbleId, activeQuickNoteModalIndex)) return;
+async function closeQuickNoteModal() {
+    const bubbleId = activeQuickNoteBubbleId;
+    const noteIndex = activeQuickNoteModalIndex;
+    const bubble = bubbleId === null ? null : nodesData.get(bubbleId);
+    const note = bubble?.content?.quickNotes?.[noteIndex];
+    if (note) note.title = document.getElementById("quickNoteModalTitle").value;
+    if (bubbleId !== null && !await flushQuickNoteSave(bubbleId, noteIndex)) return;
+    if (bubble && activeBubbleId === bubbleId) renderQuickNotes(bubble.content);
     document.getElementById("quickNoteModal").classList.remove("active");
     activeQuickNoteModalIndex = null;
     activeQuickNoteBubbleId = null;
-});
+}
+document.getElementById("closeQuickNoteModal").addEventListener("click", closeQuickNoteModal);
 document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
     if (activeBubbleId) updateDoc(doc(db, "bubbles", activeBubbleId), { title: e.target.value });
 });
@@ -1054,12 +1061,7 @@ document.getElementById("reorderPageBtn").addEventListener("click", async () => 
 document.addEventListener("keydown", async (event) => {
     if (event.key !== "Escape") return;
     const quickNoteModal = document.getElementById("quickNoteModal");
-    if (quickNoteModal.classList.contains("active")) {
-        if (activeQuickNoteBubbleId !== null && !await flushQuickNoteSave(activeQuickNoteBubbleId, activeQuickNoteModalIndex)) return;
-        quickNoteModal.classList.remove("active");
-        activeQuickNoteModalIndex = null;
-        activeQuickNoteBubbleId = null;
-    }
+    if (quickNoteModal.classList.contains("active")) await closeQuickNoteModal();
 });
 
 let savedEditorSelection = null;
